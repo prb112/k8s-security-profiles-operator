@@ -13,6 +13,7 @@ mkdir -p "$VMLINUX_DIR"
 declare -A ARCHES=(
     ["x86_64"]="x86"
     ["aarch64"]="arm64"
+    ["ppc64le"]="ppc64le"
 )
 
 for ARCH in "${!ARCHES[@]}"; do
