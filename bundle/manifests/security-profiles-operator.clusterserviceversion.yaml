@@ -120,7 +120,7 @@ metadata:
           },
           "spec": {
             "architectures": [
-              "SCMP_ARCH_X86_64"
+              "SCMP_ARCH_PPC64LE"
             ],
             "defaultAction": "SCMP_ACT_LOG",
             "syscalls": [
