@@ -17,7 +17,6 @@ limitations under the License.
 package seccompprofile
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -70,11 +69,13 @@ const (
 	errForbiddenProfile    = "seccomp profile not allowed"
 	errForbiddenAction     = "seccomp action not allowed"
 
-	filePermissionMode os.FileMode = 0o644
+	// filePermissionMode os.FileMode = 0o644
 
 	// MkdirAll won't create a directory if it does not have the execute bit.
 	// https://github.com/golang/go/issues/22323#issuecomment-340568811
-	dirPermissionMode os.FileMode = 0o744
+	// dirPermissionMode os.FileMode = 0o744
+	dirPermissionMode  = 0755 // Adjust as necessary
+	filePermissionMode = 0644 // Adjust as necessary
 
 	reasonSeccompNotSupported   string = "SeccompNotSupportedOnNode"
 	reasonInvalidSeccompProfile string = "InvalidSeccompProfile"
@@ -611,24 +612,41 @@ func (r *Reconciler) validateProfile(ctx context.Context, profile *seccompprofil
 
 func saveProfileOnDisk(name string, content []byte) (bool, error) {
 	profilePath := path.Join("/var/lib/kubelet/seccomp", name)
-	if err := os.MkdirAll(path.Dir(profilePath), dirPermissionMode); err != nil {
+	dirPath := path.Dir(profilePath)
+	fmt.Println("Profile Path:", profilePath)
+	fmt.Println("Directory Path:", dirPath)
+
+	if err := os.MkdirAll(dirPath, dirPermissionMode); err != nil {
+		fmt.Println("Error in MkdirAll:", err)
 		return false, fmt.Errorf("%s: %w", errCreatingOperatorDir, err)
 	}
+	fmt.Println("Directory created or already exists")
 
 	file, err := os.Create(profilePath)
 	if err != nil {
+		fmt.Println("Error in os.Create:", err)
 		return false, fmt.Errorf("%s: %w", errSavingProfile, err)
 	}
-	defer file.Close()
+	fmt.Println("File created:", profilePath)
+
+	defer func() {
+		if cerr := file.Close(); cerr != nil {
+			fmt.Println("Error closing file:", cerr)
+		}
+	}()
 
 	if _, err := file.Write(content); err != nil {
+		fmt.Println("Error in file.Write:", err)
 		return false, fmt.Errorf("%s: %w", errSavingProfile, err)
 	}
+	fmt.Println("Content written to file")
 
 	if err := file.Chmod(filePermissionMode); err != nil {
+		fmt.Println("Error in file.Chmod:", err)
 		return false, fmt.Errorf("%s: %w", errSavingProfile, err)
 	}
-
+	fmt.Println("File permissions set")
+	fmt.Println("Profile saved successfully")
 	return true, nil
 }
 
