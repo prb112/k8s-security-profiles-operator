@@ -74,8 +74,8 @@ const (
 	// MkdirAll won't create a directory if it does not have the execute bit.
 	// https://github.com/golang/go/issues/22323#issuecomment-340568811
 	// dirPermissionMode os.FileMode = 0o744
-	dirPermissionMode  = 0755 // Adjust as necessary
-	filePermissionMode = 0644 // Adjust as necessary
+	dirPermissionMode  = 0755
+	filePermissionMode = 0644
 
 	reasonSeccompNotSupported   string = "SeccompNotSupportedOnNode"
 	reasonInvalidSeccompProfile string = "InvalidSeccompProfile"
