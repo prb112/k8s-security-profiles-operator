@@ -637,9 +637,9 @@ func saveProfileOnDisk(name string, content []byte) (bool, error) {
 		return false, fmt.Errorf("%s: %w", errCreatingOperatorDir, err)
 	}
 
-	// If the directory does not exist, create it
+	// If the directory does not exist, create it with the execute bit
 	if !dirExists {
-		if err := os.MkdirAll(dirPath, dirPermissionMode); err != nil {
+		if err := os.MkdirAll(dirPath, 0755); err != nil { // 0755 includes the execute bit
 			fmt.Println("Error in MkdirAll:", err)
 			return false, fmt.Errorf("%s: %w", errCreatingOperatorDir, err)
 		}
