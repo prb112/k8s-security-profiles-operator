@@ -492,6 +492,8 @@ func (r *Reconciler) reconcileSeccompProfile(
 
 	l.Info("Saving profile to disk")
 	updated, err := r.save(sp.GetName(), profileContent)
+	fmt.Println("updated:", updated)
+	fmt.Println("err:", err)
 	if err != nil {
 		l.Error(err, "cannot save profile into disk")
 		r.metrics.IncSeccompProfileError(reasonCannotSaveProfile)
@@ -610,18 +612,43 @@ func (r *Reconciler) validateProfile(ctx context.Context, profile *seccompprofil
 	return nil
 }
 
+// isDirExists checks if a path exists and is a directory
+func isDirExists(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return info.IsDir(), nil
+}
+
 func saveProfileOnDisk(name string, content []byte) (bool, error) {
 	profilePath := path.Join("/var/lib/kubelet/seccomp", name)
 	dirPath := path.Dir(profilePath)
 	fmt.Println("Profile Path:", profilePath)
 	fmt.Println("Directory Path:", dirPath)
 
-	if err := os.MkdirAll(dirPath, dirPermissionMode); err != nil {
-		fmt.Println("Error in MkdirAll:", err)
+	// Check if the directory already exists
+	dirExists, err := isDirExists(dirPath)
+	if err != nil {
+		fmt.Println("Error checking if directory exists:", err)
 		return false, fmt.Errorf("%s: %w", errCreatingOperatorDir, err)
 	}
-	fmt.Println("Directory created or already exists")
 
+	// If the directory does not exist, create it
+	if !dirExists {
+		if err := os.MkdirAll(dirPath, dirPermissionMode); err != nil {
+			fmt.Println("Error in MkdirAll:", err)
+			return false, fmt.Errorf("%s: %w", errCreatingOperatorDir, err)
+		}
+		fmt.Println("Directory created")
+	} else {
+		fmt.Println("Directory already exists")
+	}
+
+	// Create the file
 	file, err := os.Create(profilePath)
 	if err != nil {
 		fmt.Println("Error in os.Create:", err)
@@ -629,18 +656,21 @@ func saveProfileOnDisk(name string, content []byte) (bool, error) {
 	}
 	fmt.Println("File created:", profilePath)
 
+	// Ensure the file is closed properly
 	defer func() {
 		if cerr := file.Close(); cerr != nil {
 			fmt.Println("Error closing file:", cerr)
 		}
 	}()
 
+	// Write the content to the file
 	if _, err := file.Write(content); err != nil {
 		fmt.Println("Error in file.Write:", err)
 		return false, fmt.Errorf("%s: %w", errSavingProfile, err)
 	}
 	fmt.Println("Content written to file")
 
+	// Set file permissions
 	if err := file.Chmod(filePermissionMode); err != nil {
 		fmt.Println("Error in file.Chmod:", err)
 		return false, fmt.Errorf("%s: %w", errSavingProfile, err)
