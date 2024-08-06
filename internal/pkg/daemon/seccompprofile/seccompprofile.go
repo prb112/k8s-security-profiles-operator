@@ -466,7 +466,7 @@ func (r *Reconciler) reconcileSeccompProfile(
 		return reconcile.Result{}, fmt.Errorf("cannot validate profile: %w", err)
 	}
 
-	profilePath := sp.GetProfilePath()
+	// profilePath := sp.GetProfilePath()
 
 	// The object is not being deleted
 	exists, existErr := nodeStatus.Exists(ctx)
@@ -490,7 +490,7 @@ func (r *Reconciler) reconcileSeccompProfile(
 	}
 
 	l.Info("Saving profile to disk")
-	updated, err := r.save(profilePath, profileContent)
+	updated, err := r.save(sp.GetName(), profileContent)
 	if err != nil {
 		l.Error(err, "cannot save profile into disk")
 		r.metrics.IncSeccompProfileError(reasonCannotSaveProfile)
@@ -609,17 +609,23 @@ func (r *Reconciler) validateProfile(ctx context.Context, profile *seccompprofil
 	return nil
 }
 
-func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error) {
-	if err := os.MkdirAll(path.Dir(fileName), dirPermissionMode); err != nil {
+func saveProfileOnDisk(name string, content []byte) (bool, error) {
+	profilePath := path.Join("/var/lib/kubelet/seccomp", name)
+	if err := os.MkdirAll(path.Dir(profilePath), dirPermissionMode); err != nil {
 		return false, fmt.Errorf("%s: %w", errCreatingOperatorDir, err)
 	}
 
-	existingContent, err := os.ReadFile(fileName)
-	if err == nil && bytes.Equal(existingContent, content) {
-		return false, nil
+	file, err := os.Create(profilePath)
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", errSavingProfile, err)
+	}
+	defer file.Close()
+
+	if _, err := file.Write(content); err != nil {
+		return false, fmt.Errorf("%s: %w", errSavingProfile, err)
 	}
 
-	if err := os.WriteFile(fileName, content, filePermissionMode); err != nil {
+	if err := file.Chmod(filePermissionMode); err != nil {
 		return false, fmt.Errorf("%s: %w", errSavingProfile, err)
 	}
 
