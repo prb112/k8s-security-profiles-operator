@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+    "log"
 	"context"
 	"path"
 	"path/filepath"
@@ -164,12 +165,23 @@ func (sp *SeccompProfile) GetProfileFile() string {
 }
 
 func (sp *SeccompProfile) GetProfilePath() string {
-	pfile := sp.GetProfileFile()
-	return path.Join(
-		config.ProfilesRootPath(),
-		filepath.Base(sp.GetNamespace()),
-		filepath.Base(pfile),
-	)
+    log.Println("Getting profile file name")
+    pfile := sp.GetProfileFile()
+
+    log.Printf("Joining path components - ProfilesRootPath: %s, Namespace: %s, ProfileFile: %s",
+        config.ProfilesRootPath(),
+        sp.GetNamespace(),
+        pfile,
+    )
+
+    resultPath := path.Join(
+        config.ProfilesRootPath(),
+        filepath.Base(sp.GetNamespace()),
+        filepath.Base(pfile),
+    )
+    log.Printf("Final Profile Path - %s", resultPath)
+
+    return resultPath
 }
 
 func (sp *SeccompProfile) GetProfileOperatorPath() string {

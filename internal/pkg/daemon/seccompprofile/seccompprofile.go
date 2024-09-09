@@ -468,7 +468,8 @@ func (r *Reconciler) reconcileSeccompProfile(
 		return reconcile.Result{}, fmt.Errorf("cannot validate profile: %w", err)
 	}
 
-	// profilePath := sp.GetProfilePath()
+	profilePath := sp.GetProfilePath()
+	fmt.Printf("L472: profilePath: %s\n", profilePath)
 
 	// The object is not being deleted
 	exists, existErr := nodeStatus.Exists(ctx)
@@ -614,22 +615,22 @@ func (r *Reconciler) validateProfile(ctx context.Context, profile *seccompprofil
 }
 
 func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error) {
-	fmt.Printf("L617: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
+	fmt.Printf("L618: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
 	if err := os.MkdirAll(path.Dir(fileName), dirPermissionMode); err != nil {
-		fmt.Printf("L619: saveProfileOnDisk MkdirAll err: %s\n", err)
+		fmt.Printf("L620: saveProfileOnDisk MkdirAll err: %s\n", err)
 		return false, fmt.Errorf("%s: %w", errCreatingOperatorDir, err)
 	}
 
 	existingContent, err := os.ReadFile(fileName)
-	fmt.Printf("L624: saveProfileOnDisk existingContent: %s\n", existingContent)
+	fmt.Printf("L625: saveProfileOnDisk existingContent: %s\n", existingContent)
 	if err == nil && bytes.Equal(existingContent, content) {
-		fmt.Printf("L626: saveProfileOnDisk ReadFile err: %s\n", err)
+		fmt.Printf("L627: saveProfileOnDisk ReadFile err: %s\n", err)
 		return false, nil
 	}
 
-	fmt.Printf("L626: Log the file path and name before writing: %s\n", fileName)
+	fmt.Printf("L631: Log the file path and name before writing: %s\n", fileName)
 	if err := os.WriteFile(fileName, content, filePermissionMode); err != nil {
-		fmt.Printf("L626: saveProfileOnDisk WriteFile err: %s\n", err)
+		fmt.Printf("L633: saveProfileOnDisk WriteFile err: %s\n", err)
 		return false, fmt.Errorf("%s: %w", errSavingProfile, err)
 	}
 
