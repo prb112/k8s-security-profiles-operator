@@ -75,8 +75,11 @@ const (
 	// MkdirAll won't create a directory if it does not have the execute bit.
 	// https://github.com/golang/go/issues/22323#issuecomment-340568811
 	// dirPermissionMode os.FileMode = 0o744
-	dirPermissionMode  = 0755
-	filePermissionMode = 0644
+	// dirPermissionMode  = 0755
+	// filePermissionMode = 0644
+
+	dirPermissionMode  os.FileMode = 0o777
+	filePermissionMode os.FileMode = 0o644
 
 	reasonSeccompNotSupported   string = "SeccompNotSupportedOnNode"
 	reasonInvalidSeccompProfile string = "InvalidSeccompProfile"
@@ -622,13 +625,13 @@ func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error
 	}
 
 	existingContent, err := os.ReadFile(fileName)
-	fmt.Printf("L625: saveProfileOnDisk existingContent: %s\n", existingContent)
 	if err == nil && bytes.Equal(existingContent, content) {
-		fmt.Printf("L627: saveProfileOnDisk ReadFile err: %s\n", err)
+		fmt.Printf("L626: saveProfileOnDisk ReadFile err: %s\n", err)
 		return false, nil
 	}
 
-	fmt.Printf("L631: Log the file path and name before writing: %s\n", fileName)
+	fmt.Printf("L630: Log the file path and name before writing: %s\n", fileName)
+
 	if err := os.WriteFile(fileName, content, filePermissionMode); err != nil {
 		fmt.Printf("L633: saveProfileOnDisk WriteFile err: %s\n", err)
 		return false, fmt.Errorf("%s: %w", errSavingProfile, err)
