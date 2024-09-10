@@ -246,28 +246,42 @@ func (r *StatusReconciler) removeStatusForDeletedNode(ctx context.Context,
 }
 
 func (r *StatusReconciler) getDS(ctx context.Context, namespace string, l logr.Logger) (*appsv1.DaemonSet, error) {
+	// Create a label selector to filter DaemonSets
 	dsSelect := labels.NewSelector()
 	spodDSFilter, err := labels.NewRequirement("spod", selection.Exists, []string{})
 	if err != nil {
+		l.Error(err, "Cannot create DS list label")
 		return nil, fmt.Errorf("cannot create DS list label: %w", err)
 	}
 	dsSelect.Add(*spodDSFilter)
+
+	// Log the constructed label selector
+	l.Info("Constructed label selector", "selector", dsSelect.String())
+
 	dsListOpts := client.ListOptions{
 		LabelSelector: dsSelect,
 		Namespace:     namespace,
 	}
 
+	// List DaemonSets in the specified namespace
 	spodDSList := appsv1.DaemonSetList{}
 	if err := r.client.List(ctx, &spodDSList, &dsListOpts); err != nil {
+		l.Error(err, "Error listing DaemonSets")
 		return nil, fmt.Errorf("cannot list DS: %w", err)
 	}
 
+	// Log the number of DaemonSets found
+	l.Info("Number of DaemonSets found", "count", len(spodDSList.Items))
+
+	// Check if exactly one DaemonSet is found
 	if len(spodDSList.Items) != 1 {
-		retErr := errors.New("did not find exactly one DS")
-		l.Error(retErr, "Expected to find 1 DS", "len(dsList.Items)", len(spodDSList.Items))
+		retErr := errors.New("did not find exactly one DaemonSet")
+		l.Error(retErr, "Expected to find 1 DaemonSet", "count", len(spodDSList.Items))
 		return nil, fmt.Errorf("listing DS: %w", retErr)
 	}
 
+	// Log details of the found DaemonSet
+	l.Info("Found DaemonSet", "name", spodDSList.Items[0].Name, "namespace", namespace)
 	return &spodDSList.Items[0], nil
 }
 
