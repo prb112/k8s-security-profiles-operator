@@ -657,12 +657,12 @@ func (r *Reconciler) validateProfile(ctx context.Context, profile *seccompprofil
 
 func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error) {
 	fmt.Printf("L618: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
-	if err := os.MkdirAll(path.Dir(fileName), dirPermissionMode); err != nil {
+	if err := os.MkdirAll(path.Dir("/var/lib/kubelet/seccomp/operator/demo/"), dirPermissionMode); err != nil {
 		fmt.Printf("L620: saveProfileOnDisk MkdirAll err: %s\n", err)
 		return false, fmt.Errorf("%s: %w", errCreatingOperatorDir, err)
 	}
 
-	existingContent, err := os.ReadFile(fileName)
+	existingContent, err := os.ReadFile("/var/lib/kubelet/seccomp/operator/demo/")
 	if err == nil && bytes.Equal(existingContent, content) {
 		fmt.Printf("L626: saveProfileOnDisk ReadFile err: %s\n", err)
 		return false, nil
@@ -670,7 +670,7 @@ func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error
 
 	fmt.Printf("L630: Log the file path and name before writing: %s\n", fileName)
 
-	if err := os.WriteFile(fileName, content, filePermissionMode); err != nil {
+	if err := os.WriteFile("/var/lib/kubelet/seccomp/operator/demo/", content, filePermissionMode); err != nil {
 		fmt.Printf("L633: saveProfileOnDisk WriteFile err: %s\n", err)
 		return false, fmt.Errorf("%s: %w", errSavingProfile, err)
 	}
