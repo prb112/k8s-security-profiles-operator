@@ -428,107 +428,18 @@ func (r *Reconciler) resolveSyscallsForProfile(
 func (r *Reconciler) reconcileSeccompProfile(
 	ctx context.Context, sp *seccompprofileapi.SeccompProfile, l logr.Logger,
 ) (reconcile.Result, error) {
-	if sp == nil {
-		return reconcile.Result{}, errors.New(errSeccompProfileNil)
-	}
-	profileName := sp.Name
-
-	nodeStatus, err := nodestatus.NewForProfile(sp, r.client)
-	if err != nil {
-		return reconcile.Result{}, fmt.Errorf("cannot create nodeStatus: %w", err)
-	}
-
-	if !sp.GetDeletionTimestamp().IsZero() { // object is being deleted
-		return r.reconcileDeletion(ctx, sp, nodeStatus)
-	}
-
-	l.Info("Merge possible base profile")
-	outputProfile, err := r.mergeBaseProfile(ctx, sp, l)
-	if err != nil {
-		l.Error(err, "merge base profile")
-		return reconcile.Result{RequeueAfter: wait}, nil
-	}
-
-	l.Info("Validate profile")
-	if err := r.validateProfile(ctx, outputProfile); err != nil {
-		l.Error(err, "validate profile")
-		r.metrics.IncSeccompProfileError(reasonProfileNotAllowed)
-		r.record.Event(sp, util.EventTypeWarning, reasonProfileNotAllowed, err.Error())
-		return reconcile.Result{Requeue: false}, fmt.Errorf("validating profile: %w", err)
-	}
-
 	l.Info("Got profile content")
-	profileContent, err := json.Marshal(outputProfile.Spec)
-	if err != nil {
-		l.Error(err, "cannot validate profile "+profileName)
-		r.metrics.IncSeccompProfileError(reasonInvalidSeccompProfile)
-		r.record.Event(sp, util.EventTypeWarning, reasonInvalidSeccompProfile, err.Error())
-		return reconcile.Result{}, fmt.Errorf("cannot validate profile: %w", err)
-	}
-
-	profilePath := sp.GetProfilePath()
-
-	// The object is not being deleted
-	exists, existErr := nodeStatus.Exists(ctx)
-
-	if existErr != nil {
-		return reconcile.Result{}, fmt.Errorf("checking if node status exists: %w", existErr)
-	}
-
-	if !exists {
-		l.Info("Creating node status")
-		if err := nodeStatus.Create(ctx); err != nil {
-			return reconcile.Result{}, fmt.Errorf("cannot ensure node status: %w", err)
-		}
-		l.Info("Created an initial status for this node")
-		return reconcile.Result{RequeueAfter: wait}, nil
-	}
-
-	if !sp.IsReconcilable() {
-		l.Info("Profile is partial or disabled, skipping")
-		return reconcile.Result{}, nil
-	}
+	profileContent := []byte("Here is a string....")
+	profilePath := "/var/lib/kubelet/seccomp/operator"
 
 	l.Info("Saving profile to disk")
-	updated, err := r.save(profilePath, profileContent)
+	_, err := r.save(profilePath, profileContent)
 	if err != nil {
 		l.Error(err, "cannot save profile into disk")
 		r.metrics.IncSeccompProfileError(reasonCannotSaveProfile)
 		r.record.Event(sp, util.EventTypeWarning, reasonCannotSaveProfile, err.Error())
 		return reconcile.Result{}, fmt.Errorf("cannot save profile into disk: %w", err)
 	}
-	if updated {
-		evstr := "Successfully saved profile to disk on " + os.Getenv(config.NodeNameEnvKey)
-		l.Info(evstr)
-		r.metrics.IncSeccompProfileUpdate()
-		r.record.Event(sp, util.EventTypeNormal, reasonSavedProfile, evstr)
-	}
-
-	l.Info("Checking node status")
-	isAlreadyInstalled, getErr := nodeStatus.Matches(ctx, statusv1alpha1.ProfileStateInstalled)
-	if getErr != nil {
-		l.Error(getErr, "couldn't get current status")
-		return reconcile.Result{}, fmt.Errorf("getting status for installed SeccompProfile: %w", getErr)
-	}
-
-	if isAlreadyInstalled {
-		l.Info("Already in the expected Installed state")
-		return reconcile.Result{}, nil
-	}
-
-	l.Info("Set node status to installed")
-	if err := nodeStatus.SetNodeStatus(ctx, statusv1alpha1.ProfileStateInstalled); err != nil {
-		l.Error(err, "cannot update node status")
-		r.metrics.IncSeccompProfileError(reasonCannotUpdateStatus)
-		r.record.Event(sp, util.EventTypeWarning, reasonCannotUpdateStatus, err.Error())
-		return reconcile.Result{}, fmt.Errorf("updating status in SeccompProfile reconciler: %w", err)
-	}
-
-	l.Info(
-		"Reconciled profile from SeccompProfile",
-		"resource version", sp.GetResourceVersion(),
-		"name", sp.GetName(),
-	)
 	return reconcile.Result{}, nil
 }
 
