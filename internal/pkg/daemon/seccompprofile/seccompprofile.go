@@ -532,7 +532,7 @@ func (r *Reconciler) reconcileSeccompProfile(
 
 	// Save profile content to disk
 	l.Info("Saving profile to disk", "profileName", profileName)
-	updated, err := r.save(sp.GetName(), profileContent)
+	updated, err := r.save(profilePath, profileContent)
 	if err != nil {
 		l.Error(err, "Failed to save profile to disk", "profileName", profileName)
 		r.metrics.IncSeccompProfileError(reasonCannotSaveProfile)
@@ -657,7 +657,7 @@ func (r *Reconciler) validateProfile(ctx context.Context, profile *seccompprofil
 
 func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error) {
 	fmt.Printf("L618: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
-	if err := os.MkdirAll(path.Dir("/var/lib/kubelet/seccomp/operator/demo/"), dirPermissionMode); err != nil {
+	if err := os.MkdirAll(path.Dir(fileName), dirPermissionMode); err != nil {
 		fmt.Printf("L620: saveProfileOnDisk MkdirAll err: %s\n", err)
 		return false, fmt.Errorf("%s: %w", errCreatingOperatorDir, err)
 	}
