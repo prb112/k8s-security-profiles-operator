@@ -659,15 +659,17 @@ func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error
     fmt.Printf("L659: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
 
     dirPath := path.Dir(fileName)
-
+    
+    // Create all parent directories if they don't exist
     if err := os.MkdirAll(dirPath, dirPermissionMode); err != nil {
         fmt.Printf("L664: saveProfileOnDisk MkdirAll err: %s\n", err)
-        // Add detailed path information to the debug output
+        // Detailed path information for debugging
         s, _ := json.MarshalIndent(map[string]string{"dirPath": dirPath}, "", "\t")
         fmt.Printf("PathErrorInfo: %s\n", string(s))
-        return false, fmt.Errorf("%s: %w", errCreatingOperatorDir, err)
+        return false, fmt.Errorf("failed to create directory: %w", err)
     }
 
+    // Read existing content
     existingContent, err := os.ReadFile(fileName)
     if err == nil && bytes.Equal(existingContent, content) {
         fmt.Printf("L673: saveProfileOnDisk ReadFile: No changes detected\n")
@@ -676,15 +678,46 @@ func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error
         fmt.Printf("L676: saveProfileOnDisk ReadFile err: %s\n", err)
     }
 
+    // Save new content
     fmt.Printf("L679: Log the file path and name before writing: %s\n", fileName)
-
     if err := os.WriteFile(fileName, content, filePermissionMode); err != nil {
         fmt.Printf("L682: saveProfileOnDisk WriteFile err: %s\n", err)
-        return false, fmt.Errorf("%s: %w", errSavingProfile, err)
+        return false, fmt.Errorf("failed to save profile: %w", err)
     }
 
     return true, nil
 }
+
+// func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error) {
+//     fmt.Printf("L659: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
+
+//     dirPath := path.Dir(fileName)
+
+//     if err := os.MkdirAll(dirPath, dirPermissionMode); err != nil {
+//         fmt.Printf("L664: saveProfileOnDisk MkdirAll err: %s\n", err)
+//         // Add detailed path information to the debug output
+//         s, _ := json.MarshalIndent(map[string]string{"dirPath": dirPath}, "", "\t")
+//         fmt.Printf("PathErrorInfo: %s\n", string(s))
+//         return false, fmt.Errorf("%s: %w", errCreatingOperatorDir, err)
+//     }
+
+//     existingContent, err := os.ReadFile(fileName)
+//     if err == nil && bytes.Equal(existingContent, content) {
+//         fmt.Printf("L673: saveProfileOnDisk ReadFile: No changes detected\n")
+//         return false, nil
+//     } else if err != nil && !os.IsNotExist(err) {
+//         fmt.Printf("L676: saveProfileOnDisk ReadFile err: %s\n", err)
+//     }
+
+//     fmt.Printf("L679: Log the file path and name before writing: %s\n", fileName)
+
+//     if err := os.WriteFile(fileName, content, filePermissionMode); err != nil {
+//         fmt.Printf("L682: saveProfileOnDisk WriteFile err: %s\n", err)
+//         return false, fmt.Errorf("%s: %w", errSavingProfile, err)
+//     }
+
+//     return true, nil
+// }
 
 func allowProfile(
 	profile *seccompprofileapi.SeccompProfile, allowedSyscalls []string, allowedActions []seccomp.Action,
