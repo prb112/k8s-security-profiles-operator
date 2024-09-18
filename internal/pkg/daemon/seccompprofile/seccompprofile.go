@@ -656,26 +656,34 @@ func (r *Reconciler) validateProfile(ctx context.Context, profile *seccompprofil
 }
 
 func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error) {
-	fmt.Printf("L618: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
-	if err := os.MkdirAll(path.Dir(fileName), dirPermissionMode); err != nil {
-		fmt.Printf("L620: saveProfileOnDisk MkdirAll err: %s\n", err)
-		return false, fmt.Errorf("%s: %w", errCreatingOperatorDir, err)
-	}
+    fmt.Printf("L659: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
 
-	existingContent, err := os.ReadFile("/var/lib/kubelet/seccomp/operator/demo/")
-	if err == nil && bytes.Equal(existingContent, content) {
-		fmt.Printf("L626: saveProfileOnDisk ReadFile err: %s\n", err)
-		return false, nil
-	}
+    dirPath := path.Dir(fileName)
 
-	fmt.Printf("L630: Log the file path and name before writing: %s\n", fileName)
+    if err := os.MkdirAll(dirPath, dirPermissionMode); err != nil {
+        fmt.Printf("L664: saveProfileOnDisk MkdirAll err: %s\n", err)
+        // Add detailed path information to the debug output
+        s, _ := json.MarshalIndent(map[string]string{"dirPath": dirPath}, "", "\t")
+        fmt.Printf("PathErrorInfo: %s\n", string(s))
+        return false, fmt.Errorf("%s: %w", errCreatingOperatorDir, err)
+    }
 
-	if err := os.WriteFile("/var/lib/kubelet/seccomp/operator/demo/", content, filePermissionMode); err != nil {
-		fmt.Printf("L633: saveProfileOnDisk WriteFile err: %s\n", err)
-		return false, fmt.Errorf("%s: %w", errSavingProfile, err)
-	}
+    existingContent, err := os.ReadFile(fileName)
+    if err == nil && bytes.Equal(existingContent, content) {
+        fmt.Printf("L673: saveProfileOnDisk ReadFile: No changes detected\n")
+        return false, nil
+    } else if err != nil && !os.IsNotExist(err) {
+        fmt.Printf("L676: saveProfileOnDisk ReadFile err: %s\n", err)
+    }
 
-	return true, nil
+    fmt.Printf("L679: Log the file path and name before writing: %s\n", fileName)
+
+    if err := os.WriteFile(fileName, content, filePermissionMode); err != nil {
+        fmt.Printf("L682: saveProfileOnDisk WriteFile err: %s\n", err)
+        return false, fmt.Errorf("%s: %w", errSavingProfile, err)
+    }
+
+    return true, nil
 }
 
 func allowProfile(
