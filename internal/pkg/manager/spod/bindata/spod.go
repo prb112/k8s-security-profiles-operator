@@ -35,6 +35,7 @@ var (
 	falsely                         = false
 	truly                           = true
 	userRootless                    = int64(config.UserRootless)
+	RunAsUserZero                   = int64(0)
 	hostPathDirectory               = corev1.HostPathDirectory
 	hostPathDirectoryOrCreate       = corev1.HostPathDirectoryOrCreate
 	hostPathFile                    = corev1.HostPathFile
@@ -340,7 +341,7 @@ semodule -i /opt/spo-profiles/selinuxrecording.cil
 							Capabilities: &corev1.Capabilities{
 								Drop: []corev1.Capability{"ALL"},
 							},
-							RunAsUser:  &userRootless,
+							RunAsUser:  &RunAsUserZero,
 							RunAsGroup: &userRootless,
 							SELinuxOptions: &corev1.SELinuxOptions{
 								// TODO(jaosorior): Use a more restricted selinux type
