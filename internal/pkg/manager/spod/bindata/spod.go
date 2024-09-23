@@ -336,7 +336,7 @@ semodule -i /opt/spo-profiles/selinuxrecording.cil
 							},
 						},
 						SecurityContext: &corev1.SecurityContext{
-							AllowPrivilegeEscalation: &truly,
+							AllowPrivilegeEscalation: &falsely,
 							ReadOnlyRootFilesystem:   &truly,
 							Capabilities: &corev1.Capabilities{
 								Drop: []corev1.Capability{"ALL"},
