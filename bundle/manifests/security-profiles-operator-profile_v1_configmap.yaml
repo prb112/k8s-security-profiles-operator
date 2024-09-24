@@ -2,7 +2,7 @@ apiVersion: v1
 data:
   security-profiles-operator.json: |
     {
-      "defaultAction": "SCMP_ACT_ERRNO",
+      "defaultAction": "SCMP_ACT_LOG",
       "architectures": [
         "SCMP_ARCH_PPC64LE"
       ],
