@@ -711,10 +711,10 @@ func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error
 
 // setDirPermissions sets the ownership and permissions for the specified directory.
 func setDirPermissions(dirPath string) error {
-	// Set ownership to UID 65535 and GID 65535
-	if err := syscall.Chown(dirPath, config.UserRootless, config.UserRootless); err != nil {
-		return fmt.Errorf("failed to change ownership: %w", err)
-	}
+	// // Set ownership to UID 65535 and GID 65535
+	// if err := syscall.Chown(dirPath, config.UserRootless, config.UserRootless); err != nil {
+	// 	return fmt.Errorf("failed to change ownership: %w", err)
+	// }
 
 	// Set permissions to 755
 	if err := os.Chmod(dirPath, dirPermissionMode); err != nil {
