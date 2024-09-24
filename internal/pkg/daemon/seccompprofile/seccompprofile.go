@@ -25,9 +25,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-    "syscall"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/containers/common/pkg/seccomp"
@@ -657,67 +657,67 @@ func (r *Reconciler) validateProfile(ctx context.Context, profile *seccompprofil
 }
 
 func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error) {
-    fmt.Printf("L659: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
+	fmt.Printf("L659: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
 
-    // Split the full path into directory and filename
-    mainDirPath := filepath.Dir(fileName)
-    mainFilename := filepath.Base(fileName)
+	// Split the full path into directory and filename
+	mainDirPath := filepath.Dir(fileName)
+	mainFilename := filepath.Base(fileName)
 
-    // Check if the main directory exists
-    if _, err = os.Stat(mainDirPath); os.IsNotExist(err) {
-        fmt.Printf("Directory does not exist: %s\n", mainDirPath)
-        return false, err
-    }
+	// Set ownership and permissions of the directory
+	if err := setDirPermissions(filepath.Dir(mainDirPath)); err != nil {
+		fmt.Printf("Error setting permissions: %v\n", err)
+		return false, err
+	}
 
-    // Set ownership and permissions of the directory
-    if err := setDirPermissions(mainDirPath); err != nil {
-        fmt.Printf("Error setting permissions: %v\n", err)
-        return false, err
-    }
+	// Check if the main directory exists
+	if _, err = os.Stat(mainDirPath); os.IsNotExist(err) {
+		fmt.Printf("Directory does not exist: %s\n", mainDirPath)
+		return false, err
+	}
 
-    // Create the file in the directory
-    mainFilePath := filepath.Join(mainDirPath, mainFilename)
-    file, err := os.Create(mainFilePath)
-    if err != nil {
-        fmt.Printf("Error creating file: %v\n", err)
-        return false, err
-    }
-    defer file.Close()
+	// Create the file in the directory
+	mainFilePath := filepath.Join(mainDirPath, mainFilename)
+	file, err := os.Create(mainFilePath)
+	if err != nil {
+		fmt.Printf("Error creating file: %v\n", err)
+		return false, err
+	}
+	defer file.Close()
 
-    fmt.Printf("File created successfully: %s\n", mainFilePath)
+	fmt.Printf("File created successfully: %s\n", mainFilePath)
 
-    // Read existing content
-    existingContent, err := os.ReadFile(mainFilePath)
-    if err == nil && bytes.Equal(existingContent, content) {
-        fmt.Printf("L673: saveProfileOnDisk ReadFile: No changes detected\n")
-        return false, nil
-    } else if err != nil && !os.IsNotExist(err) {
-        fmt.Printf("L676: saveProfileOnDisk ReadFile err: %s\n", err)
-    }
+	// Read existing content
+	existingContent, err := os.ReadFile(mainFilePath)
+	if err == nil && bytes.Equal(existingContent, content) {
+		fmt.Printf("L673: saveProfileOnDisk ReadFile: No changes detected\n")
+		return false, nil
+	} else if err != nil && !os.IsNotExist(err) {
+		fmt.Printf("L676: saveProfileOnDisk ReadFile err: %s\n", err)
+	}
 
-    // Save new content
-    fmt.Printf("L679: Log the file path and name before writing: %s\n", mainFilePath)
-    if err := os.WriteFile(mainFilePath, content, filePermissionMode); err != nil {
-        fmt.Printf("L682: saveProfileOnDisk WriteFile err: %s\n", err)
-        return false, fmt.Errorf("failed to save profile: %w", err)
-    }
+	// Save new content
+	fmt.Printf("L679: Log the file path and name before writing: %s\n", mainFilePath)
+	if err := os.WriteFile(mainFilePath, content, filePermissionMode); err != nil {
+		fmt.Printf("L682: saveProfileOnDisk WriteFile err: %s\n", err)
+		return false, fmt.Errorf("failed to save profile: %w", err)
+	}
 
-    return true, nil
+	return true, nil
 }
 
 // setDirPermissions sets the ownership and permissions for the specified directory.
 func setDirPermissions(dirPath string) error {
-    // Set ownership to UID 65535 and GID 65535
-    if err := syscall.Chown(dirPath, config.UserRootless, config.UserRootless); err != nil {
-        return fmt.Errorf("failed to change ownership: %w", err)
-    }
+	// Set ownership to UID 65535 and GID 65535
+	if err := syscall.Chown(dirPath, config.UserRootless, config.UserRootless); err != nil {
+		return fmt.Errorf("failed to change ownership: %w", err)
+	}
 
-    // Set permissions to 755
-    if err := os.Chmod(dirPath, dirPermissionMode); err != nil {
-        return fmt.Errorf("failed to change permissions: %w", err)
-    }
+	// Set permissions to 755
+	if err := os.Chmod(dirPath, dirPermissionMode); err != nil {
+		return fmt.Errorf("failed to change permissions: %w", err)
+	}
 
-    return nil
+	return nil
 }
 
 // func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error) {
