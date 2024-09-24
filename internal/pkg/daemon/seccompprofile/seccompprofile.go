@@ -657,23 +657,27 @@ func (r *Reconciler) validateProfile(ctx context.Context, profile *seccompprofil
 }
 
 func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error) {
-	fmt.Printf("L659: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
+	fmt.Printf("L660: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
 
 	// Split the full path into directory and filename
 	mainDirPath := filepath.Dir(fileName)
 	mainFilename := filepath.Base(fileName)
 
+	fmt.Printf("L666: saveProfileOnDisk: mainDirPath: %s mainFilename: %s\n", mainDirPath, mainFilename)
+
 	// Set ownership and permissions of the directory
-	if err := setDirPermissions(filepath.Dir(mainDirPath)); err != nil {
+	if err := setDirPermissions("/var/lib/kubelet/seccomp/operator"); err != nil {
 		fmt.Printf("Error setting permissions: %v\n", err)
 		return false, err
 	}
 
-	// Check if the main directory exists
-	if _, err = os.Stat(mainDirPath); os.IsNotExist(err) {
-		fmt.Printf("Directory does not exist: %s\n", mainDirPath)
+	// Check if the main directory exists, create it if it does not
+	if err := os.MkdirAll(mainDirPath, dirPermissionMode); err != nil {
+		fmt.Printf("Error creating directory: %v\n", err)
 		return false, err
 	}
+
+	fmt.Printf("L680: saveProfileOnDisk: Created directory: %s\n", mainDirPath)
 
 	// Create the file in the directory
 	mainFilePath := filepath.Join(mainDirPath, mainFilename)
