@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+    "syscall"
 	"runtime"
 	"strings"
 	"time"
@@ -657,7 +658,7 @@ func (r *Reconciler) validateProfile(ctx context.Context, profile *seccompprofil
 
 func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error) {
     fmt.Printf("L659: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
-    
+
     // Split the full path into directory and filename
     mainDirPath := filepath.Dir(fileName)
     mainFilename := filepath.Base(fileName)
@@ -665,6 +666,12 @@ func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error
     // Check if the main directory exists
     if _, err = os.Stat(mainDirPath); os.IsNotExist(err) {
         fmt.Printf("Directory does not exist: %s\n", mainDirPath)
+        return false, err
+    }
+
+    // Set ownership and permissions of the directory
+    if err := setDirPermissions(mainDirPath); err != nil {
+        fmt.Printf("Error setting permissions: %v\n", err)
         return false, err
     }
 
@@ -696,6 +703,21 @@ func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error
     }
 
     return true, nil
+}
+
+// setDirPermissions sets the ownership and permissions for the specified directory.
+func setDirPermissions(dirPath string) error {
+    // Set ownership to UID 65535 and GID 65535
+    if err := syscall.Chown(dirPath, config.UserRootless, config.UserRootless); err != nil {
+        return fmt.Errorf("failed to change ownership: %w", err)
+    }
+
+    // Set permissions to 755
+    if err := os.Chmod(dirPath, dirPermissionMode); err != nil {
+        return fmt.Errorf("failed to change permissions: %w", err)
+    }
+
+    return nil
 }
 
 // func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error) {
