@@ -716,10 +716,10 @@ func setDirPermissions(dirPath string) error {
 		return fmt.Errorf("failed to change ownership: %w", err)
 	}
 
-	// // Set permissions to 755
-	// if err := os.Chmod(dirPath, dirPermissionMode); err != nil {
-	// 	return fmt.Errorf("failed to change permissions: %w", err)
-	// }
+	// Set permissions to 755
+	if err := os.Chmod(dirPath, dirPermissionMode); err != nil {
+		return fmt.Errorf("failed to change permissions: %w", err)
+	}
 
 	return nil
 }
