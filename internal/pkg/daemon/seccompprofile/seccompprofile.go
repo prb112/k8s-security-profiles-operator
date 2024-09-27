@@ -665,11 +665,11 @@ func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error
 
 	fmt.Printf("L666: saveProfileOnDisk: mainDirPath: %s mainFilename: %s\n", mainDirPath, mainFilename)
 
-	// Set ownership and permissions of the directory
-	if err := setDirPermissions("/var/lib/kubelet/seccomp/operator"); err != nil {
-		fmt.Printf("Error setting permissions: %v\n", err)
-		return false, err
-	}
+	// // Set ownership and permissions of the directory
+	// if err := setDirPermissions("/var/lib/kubelet/seccomp/operator"); err != nil {
+	// 	fmt.Printf("Error setting permissions: %v\n", err)
+	// 	return false, err
+	// }
 
 	// Check if the main directory exists, create it if it does not
 	if err := os.MkdirAll(mainDirPath, dirPermissionMode); err != nil {
