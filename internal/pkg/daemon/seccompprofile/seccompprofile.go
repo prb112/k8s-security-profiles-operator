@@ -682,10 +682,10 @@ func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error
 		return false, err
 	}
 
-	fmt.Printf("File created successfully: %s\n", mainFilePath)
+	fmt.Printf("File created successfully: %s\n", fileName)
 
 	// Read existing content
-	existingContent, err := os.ReadFile(mainFilePath)
+	existingContent, err := os.ReadFile(fileName)
 	if err == nil && bytes.Equal(existingContent, content) {
 		fmt.Printf("L673: saveProfileOnDisk ReadFile: No changes detected\n")
 		return false, nil
@@ -694,8 +694,8 @@ func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error
 	}
 
 	// Save new content
-	fmt.Printf("L679: Log the file path and name before writing: %s\n", mainFilePath)
-	if err := os.WriteFile(mainFilePath, content, filePermissionMode); err != nil {
+	// fmt.Printf("L679: Log the file path and name before writing: %s\n", mainFilePath)
+	if err := os.WriteFile(fileName, content, filePermissionMode); err != nil {
 		fmt.Printf("L682: saveProfileOnDisk WriteFile err: %s\n", err)
 		return false, fmt.Errorf("failed to save profile: %w", err)
 	}
