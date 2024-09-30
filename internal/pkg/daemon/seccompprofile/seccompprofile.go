@@ -27,7 +27,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/containers/common/pkg/seccomp"
