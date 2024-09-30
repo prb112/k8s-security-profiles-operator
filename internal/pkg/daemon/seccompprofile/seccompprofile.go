@@ -657,57 +657,47 @@ func (r *Reconciler) validateProfile(ctx context.Context, profile *seccompprofil
 }
 
 func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error) {
-	fmt.Printf("L660: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
+    fmt.Printf("L660: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
 
-	// Split the full path into directory and filename
-	mainDirPath := filepath.Dir(fileName)
-	mainFilename := filepath.Base(fileName)
+    // Split the full path into directory and filename (this step might not be necessary)
+    mainDirPath := filepath.Dir(fileName)
 
-	fmt.Printf("L666: saveProfileOnDisk: mainDirPath: %s mainFilename: %s\n", mainDirPath, mainFilename)
+    // Check if the main directory exists, create it if it does not
+    if err := os.MkdirAll(mainDirPath, dirPermissionMode); err != nil {
+        fmt.Printf("Error creating directory: %v\n", err)
+        return false, err
+    }
+    fmt.Printf("L680: saveProfileOnDisk: Created directory: %s\n", mainDirPath)
 
-	// // Set ownership and permissions of the directory
-	// if err := setDirPermissions("/var/lib/kubelet/seccomp/operator"); err != nil {
-	// 	fmt.Printf("Error setting permissions: %v\n", err)
-	// 	return false, err
-	// }
+    // Create or open the file (this step is not needed if using os.WriteFile)
+    file, err := os.Create(fileName) // Use fileName directly instead of joining paths
+    if err != nil {
+        fmt.Printf("Error creating file: %v\n", err)
+        return false, err
+    }
+    defer file.Close() // Moved after error check
 
-	// Check if the main directory exists, create it if it does not
-	if err := os.MkdirAll(mainDirPath, dirPermissionMode); err != nil {
-		fmt.Printf("Error creating directory: %v\n", err)
-		return false, err
-	}
+    fmt.Printf("File created successfully: %s\n", fileName)
 
-	fmt.Printf("L680: saveProfileOnDisk: Created directory: %s\n", mainDirPath)
+    // Read existing content to check for changes
+    existingContent, err := os.ReadFile(fileName)
+    if err == nil && bytes.Equal(existingContent, content) {
+        fmt.Printf("L673: saveProfileOnDisk ReadFile: No changes detected\n")
+        return false, nil
+    } else if err != nil && !os.IsNotExist(err) {
+        fmt.Printf("L676: saveProfileOnDisk ReadFile err: %s\n", err)
+    }
 
-	// Create the file in the directory
-	mainFilePath := filepath.Join(mainDirPath, mainFilename)
-	file, err := os.Create(mainFilePath)
-	if err != nil {
-		fmt.Printf("Error creating file: %v\n", err)
-		return false, err
-	}
-	defer file.Close()
+    // Save new content to the file (you can skip os.Create and just use os.WriteFile)
+    fmt.Printf("L679: Log the file path and name before writing: %s\n", fileName)
+    if err := os.WriteFile(fileName, content, filePermissionMode); err != nil {
+        fmt.Printf("L682: saveProfileOnDisk WriteFile err: %s\n", err)
+        return false, fmt.Errorf("failed to save profile: %w", err)
+    }
 
-	fmt.Printf("File created successfully: %s\n", mainFilePath)
-
-	// Read existing content
-	existingContent, err := os.ReadFile(mainFilePath)
-	if err == nil && bytes.Equal(existingContent, content) {
-		fmt.Printf("L673: saveProfileOnDisk ReadFile: No changes detected\n")
-		return false, nil
-	} else if err != nil && !os.IsNotExist(err) {
-		fmt.Printf("L676: saveProfileOnDisk ReadFile err: %s\n", err)
-	}
-
-	// Save new content
-	fmt.Printf("L679: Log the file path and name before writing: %s\n", mainFilePath)
-	if err := os.WriteFile(mainFilePath, content, filePermissionMode); err != nil {
-		fmt.Printf("L682: saveProfileOnDisk WriteFile err: %s\n", err)
-		return false, fmt.Errorf("failed to save profile: %w", err)
-	}
-
-	return true, nil
+    return true, nil
 }
+
 
 // setDirPermissions sets the ownership and permissions for the specified directory.
 func setDirPermissions(dirPath string) error {
