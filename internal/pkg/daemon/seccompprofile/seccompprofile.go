@@ -657,31 +657,29 @@ func (r *Reconciler) validateProfile(ctx context.Context, profile *seccompprofil
 }
 
 func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error) {
-    fmt.Printf("L660: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
+    fmt.Printf("L660: saveProfileOnDisk : %s %s\n", fileName, dirPermissionMode)
 
     // Check if the main directory exists, create it if it does not
     if err := os.MkdirAll(fileName, dirPermissionMode); err != nil {
-        fmt.Printf("Error creating directory: %v\n", err)
+        fmt.Printf("Error creating directory : %v\n", err)
         return false, err
     }
-    fmt.Printf("L680: saveProfileOnDisk: Created directory: %s\n", fileName)
-
-    fmt.Printf("File created successfully: %s\n", fileName)
+    fmt.Printf("L680: saveProfileOnDisk : Created directory : %s\n", fileName)
 
     // Read existing content to check for changes
     existingContent, err := os.ReadFile(fileName)
     if err == nil && bytes.Equal(existingContent, content) {
-        fmt.Printf("L673: saveProfileOnDisk ReadFile: No changes detected\n")
+        fmt.Printf("L673: saveProfileOnDisk ReadFile : No changes detected\n")
         return false, nil
     } else if err != nil && !os.IsNotExist(err) {
-        fmt.Printf("L676: saveProfileOnDisk ReadFile err: %s\n", err)
+        fmt.Printf("L676: saveProfileOnDisk ReadFile err : %s\n", err)
     }
 
     // Save new content to the file
-    fmt.Printf("L679: Log the file path and name before writing: %s\n", fileName)
+    fmt.Printf("L679: Log the file path and name before writing : %s\n", fileName)
     if err := os.WriteFile(fileName, content, filePermissionMode); err != nil {
-        fmt.Printf("L682: saveProfileOnDisk WriteFile err: %s\n", err)
-        return false, fmt.Errorf("failed to save profile: %w", err)
+        fmt.Printf("L682: saveProfileOnDisk WriteFile err : %s\n", err)
+        return false, fmt.Errorf("failed to save profile : %w", err)
     }
 
     return true, nil
