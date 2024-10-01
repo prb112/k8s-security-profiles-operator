@@ -674,14 +674,14 @@ func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error
 
 	// Create the file in the directory
 	// mainFilePath := filepath.Join(mainDirPath, mainFilename)
-	file, err := os.Create(fileName)
-	defer file.Close()
-	if err != nil {
-		fmt.Printf("Error creating file: %v\n", err)
-		return false, err
-	}
+	// file, err := os.Create(fileName)
+	// if err != nil {
+	// 	fmt.Printf("Error creating file: %v\n", err)
+	// 	return false, err
+	// }
+	// defer file.Close()
 
-	fmt.Printf("File created successfully: %s\n", fileName)
+	// fmt.Printf("File created successfully: %s\n", fileName)
 
 	// Read existing content
 	existingContent, err := os.ReadFile(fileName)
