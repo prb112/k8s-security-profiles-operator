@@ -318,22 +318,39 @@ func (r *ReconcileSelinux) reconcilePolicy(
 }
 
 func (r *ReconcileSelinux) reconcilePolicyFile(
-	sp selxv1alpha2.SelinuxProfileObject,
-	oh SelinuxObjectHandler,
-	l logr.Logger,
+    sp selxv1alpha2.SelinuxProfileObject,
+    oh SelinuxObjectHandler,
+    l logr.Logger,
 ) error {
-	policyPath := path.Join(bindata.SelinuxDropDirectory, sp.GetPolicyName()+".cil")
-	cil, parseErr := oh.GetCILPolicy()
-	if parseErr != nil {
-		return fmt.Errorf("generating CIL: %w", parseErr)
-	}
-	policyContent := []byte(cil)
+    // Get the policy name
+    policyName := sp.GetPolicyName()
+    // Get the directory for the policy files
+    dir := bindata.SelinuxDropDirectory
+    // Create the complete policy path
+    policyPath := path.Join(dir, policyName+".cil")
 
-	if err := writeFileIfDiffers(policyPath, policyContent, l); err != nil {
-		return fmt.Errorf("writing policy file: %w", err)
-	}
+    // Check if the directory exists before joining the path
+    if _, err := os.Stat(dir); os.IsNotExist(err) {
+        // Create the directory if it does not exist
+        if mkErr := os.MkdirAll(dir, os.ModePerm); mkErr != nil {
+            return fmt.Errorf("creating directory %s: %w", dir, mkErr)
+        }
+    } else if err != nil {
+        return fmt.Errorf("checking directory %s: %w", dir, err)
+    }
 
-	return nil
+    cil, parseErr := oh.GetCILPolicy()
+    if parseErr != nil {
+        return fmt.Errorf("generating CIL: %w", parseErr)
+    }
+    policyContent := []byte(cil)
+
+    // Write the policy file
+    if err := writeFileIfDiffers(policyPath, policyContent, l); err != nil {
+        return fmt.Errorf("writing policy file: %w", err)
+    }
+
+    return nil
 }
 
 func (r *ReconcileSelinux) reconcileDeletePolicy(
