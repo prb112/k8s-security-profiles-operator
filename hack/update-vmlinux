@@ -1,23 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION=37
+# Version 37 no longer exists at this location and is in the archive.
+# We chose to use the latest version 40.
+VERSION=40
 
 BASE_URL=https://dl.fedoraproject.org/pub/fedora/linux/releases/$VERSION
+SECONDARY_URL=https://dl.fedoraproject.org/pub/fedora-secondary/releases/$VERSION
 ROOT_DIR=$(git rev-parse --show-toplevel)
 VMLINUX_DIR="$ROOT_DIR/internal/pkg/daemon/bpfrecorder/vmlinux"
 
+# Clean and create the vmlinux directory
 rm -rf "$VMLINUX_DIR"
 mkdir -p "$VMLINUX_DIR"
 
 declare -A ARCHES=(
     ["x86_64"]="x86"
     ["aarch64"]="arm64"
+    ["ppc64le"]="ppc64le"
 )
 
 for ARCH in "${!ARCHES[@]}"; do
-    URL=$BASE_URL/Everything/$ARCH/debug/tree/Packages/k
-    KERNEL=$(curl -sSfL "$URL" | grep -oE '>kernel-debuginfo-[0-9].*?\.rpm')
+    if [ "$ARCH" = "ppc64le" ]; then
+        URL=$SECONDARY_URL/Everything/$ARCH/debug/tree/Packages/k
+    else
+        URL=$BASE_URL/Everything/$ARCH/debug/tree/Packages/k
+    fi
+
+    echo "Fetching kernel debuginfo package list from $URL"
+    KERNEL=$(curl -sSfL "$URL" | grep -oE '>kernel-debuginfo-[0-9].*?\.rpm' | head -n 1)
+    if [ -z "$KERNEL" ]; then
+        echo "Error: No kernel debuginfo RPM found at $URL"
+        exit 1
+    fi
     KERNEL_URL="$URL/${KERNEL:1}"
     echo "Using kernel $KERNEL_URL"
 
@@ -25,15 +40,38 @@ for ARCH in "${!ARCHES[@]}"; do
     trap 'rm -rf $TEMPDIR' EXIT
     pushd "$TEMPDIR"
     RPM=kernel.rpm
+    echo "Downloading kernel RPM to $TEMPDIR"
     curl -SfL "$KERNEL_URL" -o $RPM
-    VMLINUX=$(rpmquery -qlp $RPM 2>&1 | grep vmlinux)
+    echo "Querying RPM for vmlinux path"
+    rpmquery -qlp $RPM > rpm_contents.txt
+    cat rpm_contents.txt
+    VMLINUX=$(grep vmlinux rpm_contents.txt | head -n 1)
+    if [ -z "$VMLINUX" ]; then
+        echo "Error: vmlinux file not found in $RPM"
+        exit 1
+    fi
+    echo "Extracting vmlinux from RPM: $VMLINUX"
     rpm2cpio $RPM | cpio -idv ."$VMLINUX"
 
     KERNEL_VERSION=$(echo "$VMLINUX" | cut -d/ -f7)
+    echo "Kernel version: $KERNEL_VERSION"
     TARGET_DIR=$VMLINUX_DIR/${ARCHES[$ARCH]}
     mkdir -p "$TARGET_DIR"
 
-    bpftool btf dump file ".$VMLINUX" format c >"$TARGET_DIR/$KERNEL_VERSION.vmlinux.h"
+    if [ "$ARCH" = "ppc64le" ]; then
+        echo "Dumping BTF from pre-existing vmlinux to $TARGET_DIR/$KERNEL_VERSION.vmlinux.h"
+        bpftool btf dump file "/usr/lib/debug/lib/modules/$(uname -r)/vmlinux" format c >"$TARGET_DIR/$KERNEL_VERSION.vmlinux.h" || {
+            echo "Error: failed to load BTF from /usr/lib/debug/lib/modules/$(uname -r)/vmlinux"
+            exit 1
+        }
+    else
+        echo "Dumping BTF from vmlinux to $TARGET_DIR/$KERNEL_VERSION.vmlinux.h"
+        bpftool btf dump file ".$VMLINUX" format c >"$TARGET_DIR/$KERNEL_VERSION.vmlinux.h" || {
+            echo "Error: failed to load BTF from .$VMLINUX"
+            exit 1
+        }
+    fi
+
     pushd "$TARGET_DIR"
     ln -sf "$KERNEL_VERSION.vmlinux.h" vmlinux.h
     popd
@@ -41,3 +79,6 @@ for ARCH in "${!ARCHES[@]}"; do
     popd
     rm -rf "$TEMPDIR"
 done
+
+echo "Script completed successfully."
+

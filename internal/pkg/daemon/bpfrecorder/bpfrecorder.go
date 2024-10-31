@@ -557,19 +557,20 @@ func (b *BpfRecorder) findBtfPath() (string, error) {
 		return "", fmt.Errorf("uname syscall failed: %w", err)
 	}
 
-	arch := types.Arch(toStringInt8(uname.Machine))
+	arch := types.Arch(UnameMachineToString(uname))
 	btfArch, ok := btfOsVersion[arch]
 	if !ok {
 		b.logger.Info(fmt.Sprintf("Architecture not found in btf map: %s", arch))
 		return "", nil
 	}
 	b.logger.Info(fmt.Sprintf("Architecture found in btf map: %s", arch))
-
-	release := toStringInt8(uname.Release)
+	
+	release := UnameReleaseToString(uname)
 	version, err := semver.Parse(release)
 	if err != nil {
 		return "", fmt.Errorf("unable to parse semver for release %s: %w", release, err)
 	}
+	
 	version.Pre = nil
 	const (
 		lowestMajor = 5

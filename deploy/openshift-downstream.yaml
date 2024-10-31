@@ -3003,10 +3003,7 @@ data:
     {
       "defaultAction": "SCMP_ACT_ERRNO",
       "architectures": [
-        "SCMP_ARCH_X86_64",
-        "SCMP_ARCH_X86",
-        "SCMP_ARCH_X32",
-        "SCMP_ARCH_AARCH64"
+        "SCMP_ARCH_PPC64LE"
       ],
       "syscalls": [
         {
@@ -3195,11 +3192,11 @@ spec:
         - name: RELATED_IMAGE_RBAC_PROXY
           value: gcr.io/kubebuilder/kube-rbac-proxy:v0.15.0
         - name: RELATED_IMAGE_SELINUXD
-          value: quay.io/security-profiles-operator/selinuxd
+          value: quay.io/pturrey/v1-security-profiles-operator/selinuxd:latest
         - name: RELATED_IMAGE_SELINUXD_EL8
           value: quay.io/security-profiles-operator/selinuxd-el8:latest
         - name: RELATED_IMAGE_SELINUXD_EL9
-          value: quay.io/security-profiles-operator/selinuxd-el9:latest
+          value: quay.io/pturrey/v1-security-profiles-operator/selinuxd-el9:latest
         - name: RELATED_IMAGE_SELINUXD_FEDORA
           value: quay.io/security-profiles-operator/selinuxd-fedora:latest
         - name: OPERATOR_NAMESPACE

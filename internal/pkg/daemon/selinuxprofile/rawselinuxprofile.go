@@ -82,11 +82,25 @@ func (sph *rawSelinuxProfileHandler) GetCILPolicy() (string, error) {
 }
 
 func (sph *rawSelinuxProfileHandler) wrapPolicy() (string, error) {
+	//  the original policy
+	fmt.Printf("Original Policy:\n%s\n", sph.rsp.Spec.Policy)
+	
+	// Trim whitespace from the original policy
 	parsedpolicy := strings.TrimSpace(sph.rsp.Spec.Policy)
-	// ident
+	//  the trimmed policy
+	fmt.Printf("Trimmed Policy:\n%s\n", parsedpolicy)
+	
+	// Indent the policy by replacing newlines with indented newlines
 	parsedpolicy = strings.ReplaceAll(parsedpolicy, "\n", "\n    ")
-	// replace empty lines
+	//  the indented policy
+	fmt.Printf("Indented Policy:\n%s\n", parsedpolicy)
+	
+	// Trim again to remove extra whitespace (if any) from empty lines
 	parsedpolicy = strings.TrimSpace(parsedpolicy)
+	//  the final parsed policy
+	fmt.Printf("Final Parsed Policy:\n%s\n", parsedpolicy)
+
+	// Prepare data for the policy template
 	data := struct {
 		Name      string
 		Namespace string
@@ -96,10 +110,21 @@ func (sph *rawSelinuxProfileHandler) wrapPolicy() (string, error) {
 		Namespace: sph.rsp.GetNamespace(),
 		Policy:    parsedpolicy,
 	}
+	//  the data being passed to the template
+	fmt.Printf("Data for Template: Name=%s, Namespace=%s, Policy=%s\n", data.Name, data.Namespace, data.Policy)
+	
+	// Render the policy template
 	var result bytes.Buffer
 	if err := sph.policyTemplate.Execute(&result, data); err != nil {
+		//  the error if template rendering fails
+		fmt.Printf("Error rendering policy: %v\n", err)
 		return "", fmt.Errorf("couldn't render policy: %w", err)
 	}
+	
+	//  the final rendered policy
+	fmt.Printf("Rendered Policy:\n%s\n", result.String())
+
+	// Return the final result as a string
 	return result.String(), nil
 }
 

@@ -2,12 +2,9 @@ apiVersion: v1
 data:
   security-profiles-operator.json: |
     {
-      "defaultAction": "SCMP_ACT_ERRNO",
+      "defaultAction": "SCMP_ACT_LOG",
       "architectures": [
-        "SCMP_ARCH_X86_64",
-        "SCMP_ARCH_X86",
-        "SCMP_ARCH_X32",
-        "SCMP_ARCH_AARCH64"
+        "SCMP_ARCH_PPC64LE"
       ],
       "syscalls": [
         {
@@ -17,6 +14,7 @@ data:
             "arch_prctl",
             "bind",
             "brk",
+            "bpf",
             "capget",
             "capset",
             "chdir",

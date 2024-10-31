@@ -111,15 +111,17 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 	logger := r.log.WithValues("nodeStatus", req.Name, "namespace", req.Namespace)
 	logger.V(config.VerboseLevel).Info("Reconciling node status")
 
-	// get the status to be reconciled
+	logger.Info(fmt.Sprintf("Fetching NodeStatus instance for: %s/%s", req.Namespace, req.Name))
 	instance := &statusv1alpha1.SecurityProfileNodeStatus{}
 	if err := r.client.Get(ctx, req.NamespacedName, instance); err != nil {
-		// Expected to find a node profile, return an error and requeue
+		logger.Info("NodeStatus instance not found, skipping reconciliation")
 		return reconcile.Result{}, util.IgnoreNotFound(err)
 	}
 
+	logger.Info(fmt.Sprintf("Fetching profile associated with NodeStatus: %s", req.Name))
 	prof, getProfErr := r.getProfileFromStatus(ctx, instance)
 	if getProfErr != nil {
+		logger.Info("Failed to get profile from NodeStatus")
 		return reconcile.Result{}, getProfErr
 	}
 
@@ -129,97 +131,102 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req reconcile.Request)
 		"Profile.Kind", prof.GetObjectKind().GroupVersionKind(),
 	)
 
-	// Initialize status if it hasn't happened already
 	if prof.GetStatusBase().Status == "" {
-		lprof.Info("Initializing Profile status")
-
+		logger.Info("Initializing profile status")
 		targetStatus := statusv1alpha1.ProfileStatePending
 		if instance.Status != "" {
 			targetStatus = instance.Status
 		}
+		logger.Info(fmt.Sprintf("Target status initialized as: %s", targetStatus))
 		return reconcile.Result{}, r.reconcileStatus(ctx, prof, targetStatus, lprof)
 	}
 
-	// get all the other statuses
+	logger.Info("Verifying profile label on the NodeStatus")
 	profLabel := instance.Labels[statusv1alpha1.StatusToProfLabel]
 	if profLabel == "" {
+		logger.Info("Profile label missing on NodeStatus, cannot proceed")
 		return reconcile.Result{}, errors.New("unlabeled node status")
 	}
-
-	if util.KindBasedDNSLengthName(prof) != instance.Labels[statusv1alpha1.StatusToProfLabel] {
+	if util.KindBasedDNSLengthName(prof) != profLabel {
+		logger.Info("Mismatch between profile label and NodeStatus owner")
 		return reconcile.Result{}, errors.New("status doesn't match owner")
 	}
 
+	logger.Info(fmt.Sprintf("Listing all node statuses for profile: %s", profLabel))
 	nodeStatusList, err := listStatusesForProfile(ctx, r.client, instance.Namespace, profLabel)
 	if err != nil {
+		logger.Info("Failed to list node statuses")
 		return reconcile.Result{}, fmt.Errorf("cannot list the node statuses: %w", err)
 	}
 
-	// get the DS
+	logger.Info("Fetching DaemonSet for Security Profile Operator")
 	spodDS, err := r.getDS(ctx, config.GetOperatorNamespace(), lprof)
 	if err != nil {
+		logger.Info("Failed to get DaemonSet")
 		return reconcile.Result{}, fmt.Errorf("cannot get the DS: %w", err)
 	}
 
 	if !daemonSetIsReady(spodDS) || daemonSetIsUpdating(spodDS) {
-		// If the DS is not ready or updating, don't bother updating the status
-		logger.Info("Not updating policy because the SPOd is not ready")
+		logger.Info("DaemonSet is either not ready or updating, skipping status update")
 		return reconcile.Result{RequeueAfter: dsWait}, nil
 	}
 
-	// make sure we have all the statuses already
+	logger.Info("Checking if all node statuses are ready")
 	hasStatuses := len(nodeStatusList.Items)
 	wantsStatuses := spodDS.Status.DesiredNumberScheduled
 	if wantsStatuses > int32(hasStatuses) {
-		logger.Info("Not updating policy: not all statuses are ready",
-			"has", hasStatuses, "wants", wantsStatuses)
-		// Don't reconcile again, let's just wait for another update
+		logger.Info(fmt.Sprintf("Not all node statuses are ready. Has: %d, Wants: %d", hasStatuses, wantsStatuses))
 		return reconcile.Result{}, nil
 	} else if wantsStatuses < int32(hasStatuses) {
-		// this happens when nodes are removed from the cluster
-		logger.Info("Removing extra statuses", "has", hasStatuses, "wants", wantsStatuses)
+		logger.Info(fmt.Sprintf("Extra node statuses detected. Has: %d, Wants: %d", hasStatuses, wantsStatuses))
 		nodeName, err := r.removeStatusForDeletedNode(ctx, nodeStatusList, lprof)
 		if err != nil {
+			logger.Info("Failed to remove extra statuses")
 			return reconcile.Result{}, fmt.Errorf("cannot remove extra statuses: %w", err)
 		}
 		if nodeName != "" {
-			// remove the deleted node finalizer string from the profile
-			logger.Info("Removing finalizer from profile", "profile", prof.GetName(), "node", nodeName)
+			logger.Info(fmt.Sprintf("Removing finalizer from profile for node: %s", nodeName))
 			if err := util.RemoveFinalizer(ctx, r.client, prof, util.GetFinalizerNodeString(nodeName)); err != nil {
+				logger.Info("Failed to remove finalizer from profile")
 				return reconcile.Result{}, fmt.Errorf("cannot remove finalizer from profile: %w", err)
 			}
 		}
 		return reconcile.Result{Requeue: true}, nil
 	}
 
+	logger.Info("Comparing node statuses and profile finalizers")
 	statusMatch, err := util.FinalizersMatchCurrentNodes(ctx, nodeStatusList)
 	if err != nil {
+		logger.Info("Failed to compare statuses and finalizers")
 		return reconcile.Result{}, fmt.Errorf("cannot compare statuses and finalizers: %w", err)
 	}
-	if !statusMatch { // if the finalizers don't match the current nodes
-		// Get current list of nodes
+	if !statusMatch {
+		logger.Info("Mismatch found between finalizers and current nodes")
 		currentNodeNames, err := util.GetNodeList(ctx)
 		if err != nil {
+			logger.Info("Failed to fetch current node list")
 			return reconcile.Result{}, fmt.Errorf("cannot get node list: %w", err)
 		}
-		// if nodeName is not in currentNodeNames and there isn't a mismatch in statuses/nodes, remove it from the finalizers
+
 		for i := range nodeStatusList.Items {
 			nodeStatus := &nodeStatusList.Items[i]
-			if !util.ContainsSubstring(currentNodeNames, nodeStatus.NodeName) { // string not in list
-				// Found a finalizer for a node that doesn't exist
+			if !util.ContainsSubstring(currentNodeNames, nodeStatus.NodeName) {
 				finalizerNodeString := util.GetFinalizerNodeString(nodeStatus.NodeName)
+				logger.Info(fmt.Sprintf("Removing finalizer for non-existent node: %s", nodeStatus.NodeName))
 				if err := util.RemoveFinalizer(ctx, r.client, prof, finalizerNodeString); err != nil {
+					logger.Info("Failed to remove finalizer for non-existent node")
 					return reconcile.Result{}, fmt.Errorf("cannot remove finalizer: %w", err)
 				}
 			}
 		}
 	}
 
+	logger.Info("Determining lowest common status among nodes")
 	lowestCommonState := statusv1alpha1.LowestState
 	for i := range nodeStatusList.Items {
 		lowestCommonState = statusv1alpha1.LowerOfTwoStates(lowestCommonState, nodeStatusList.Items[i].Status)
 	}
-	logger.V(config.VerboseLevel).Info("Setting the status to", "Status", lowestCommonState)
+	logger.Info(fmt.Sprintf("Setting profile status to: %s", lowestCommonState))
 
 	return reconcile.Result{}, r.reconcileStatus(ctx, prof, lowestCommonState, lprof)
 }
@@ -246,28 +253,42 @@ func (r *StatusReconciler) removeStatusForDeletedNode(ctx context.Context,
 }
 
 func (r *StatusReconciler) getDS(ctx context.Context, namespace string, l logr.Logger) (*appsv1.DaemonSet, error) {
+	// Create a label selector to filter DaemonSets
 	dsSelect := labels.NewSelector()
 	spodDSFilter, err := labels.NewRequirement("spod", selection.Exists, []string{})
 	if err != nil {
+		l.Error(err, "Cannot create DS list label")
 		return nil, fmt.Errorf("cannot create DS list label: %w", err)
 	}
 	dsSelect.Add(*spodDSFilter)
+
+	// Log the constructed label selector
+	l.Info("Constructed label selector", "selector", dsSelect.String())
+
 	dsListOpts := client.ListOptions{
 		LabelSelector: dsSelect,
 		Namespace:     namespace,
 	}
 
+	// List DaemonSets in the specified namespace
 	spodDSList := appsv1.DaemonSetList{}
 	if err := r.client.List(ctx, &spodDSList, &dsListOpts); err != nil {
+		l.Error(err, "Error listing DaemonSets")
 		return nil, fmt.Errorf("cannot list DS: %w", err)
 	}
 
+	// Log the number of DaemonSets found
+	l.Info("Number of DaemonSets found", "count", len(spodDSList.Items))
+
+	// Check if exactly one DaemonSet is found
 	if len(spodDSList.Items) != 1 {
-		retErr := errors.New("did not find exactly one DS")
-		l.Error(retErr, "Expected to find 1 DS", "len(dsList.Items)", len(spodDSList.Items))
+		retErr := errors.New("did not find exactly one DaemonSet")
+		l.Error(retErr, "Expected to find 1 DaemonSet", "count", len(spodDSList.Items))
 		return nil, fmt.Errorf("listing DS: %w", retErr)
 	}
 
+	// Log details of the found DaemonSet
+	l.Info("Found DaemonSet", "name", spodDSList.Items[0].Name, "namespace", namespace)
 	return &spodDSList.Items[0], nil
 }
 

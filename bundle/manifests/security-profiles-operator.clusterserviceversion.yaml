@@ -120,7 +120,7 @@ metadata:
           },
           "spec": {
             "architectures": [
-              "SCMP_ARCH_X86_64"
+              "SCMP_ARCH_PPC64LE"
             ],
             "defaultAction": "SCMP_ACT_LOG",
             "syscalls": [
@@ -855,11 +855,11 @@ spec:
                 - name: RELATED_IMAGE_RBAC_PROXY
                   value: gcr.io/kubebuilder/kube-rbac-proxy:v0.15.0
                 - name: RELATED_IMAGE_SELINUXD
-                  value: quay.io/security-profiles-operator/selinuxd
+                  value: quay.io/pturrey/v1-security-profiles-operator/selinuxd:latest
                 - name: RELATED_IMAGE_SELINUXD_EL8
                   value: quay.io/security-profiles-operator/selinuxd-el8:latest
                 - name: RELATED_IMAGE_SELINUXD_EL9
-                  value: quay.io/security-profiles-operator/selinuxd-el9:latest
+                  value: quay.io/pturrey/v1-security-profiles-operator/selinuxd-el9:latest
                 - name: RELATED_IMAGE_SELINUXD_FEDORA
                   value: quay.io/security-profiles-operator/selinuxd-fedora:latest
                 - name: OPERATOR_NAMESPACE
@@ -876,7 +876,7 @@ spec:
                       fieldPath: spec.nodeName
                 - name: KUBELET_DIR
                   value: /var/lib/kubelet
-                image: gcr.io/k8s-staging-sp-operator/security-profiles-operator:latest
+                image: quay.io/pturrey/v1-security-profiles-operator:ppc64le
                 imagePullPolicy: Always
                 name: security-profiles-operator
                 resources:
@@ -981,11 +981,11 @@ spec:
   relatedImages:
   - image: gcr.io/kubebuilder/kube-rbac-proxy:v0.15.0
     name: rbac-proxy
-  - image: quay.io/security-profiles-operator/selinuxd
+  - image: quay.io/pturrey/v1-security-profiles-operator/selinuxd:latest
     name: selinuxd
   - image: quay.io/security-profiles-operator/selinuxd-el8:latest
     name: selinuxd-el8
-  - image: quay.io/security-profiles-operator/selinuxd-el9:latest
+  - image: quay.io/pturrey/v1-security-profiles-operator/selinuxd-el9:latest
     name: selinuxd-el9
   - image: quay.io/security-profiles-operator/selinuxd-fedora:latest
     name: selinuxd-fedora

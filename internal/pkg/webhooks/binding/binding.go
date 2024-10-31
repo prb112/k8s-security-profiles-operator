@@ -144,40 +144,51 @@ func (p *podBinder) updatePod(
 	podID := req.Namespace + "/" + req.Name
 	pod := &corev1.Pod{}
 	podChanged := false
+
+	p.log.Info("Starting updatePod", "podID", podID, "operation", req.Operation)
+
 	if req.Operation != "DELETE" {
 		pod, err = p.impl.DecodePod(*req)
 		if err != nil {
-			p.log.Error(err, "failed to decode pod")
+			p.log.Error(err, "failed to decode pod", "podID", podID)
 			return pod, admission.Errored(http.StatusBadRequest, err)
 		}
+		p.log.Info("Decoded pod", "pod", pod)
 		initContainerMap(&containers, &pod.Spec)
+		p.log.Info("Initialized container map", "containers", containers)
 	}
+
 	for i := range profilebindings {
 		profileKind := profilebindings[i].Spec.ProfileRef.Kind
-		if profileKind != profilebindingv1alpha1.ProfileBindingKindSeccompProfile {
-			if profileKind != profilebindingv1alpha1.ProfileBindingKindSelinuxProfile {
-				p.log.Info(fmt.Sprintf("profile kind %s not yet supported", profileKind))
-				continue
-			}
+		p.log.Info("Processing profile binding", "profileKind", profileKind, "binding", profilebindings[i])
+
+		if profileKind != profilebindingv1alpha1.ProfileBindingKindSeccompProfile &&
+			profileKind != profilebindingv1alpha1.ProfileBindingKindSelinuxProfile {
+			p.log.Info(fmt.Sprintf("profile kind %s not yet supported", profileKind))
+			continue
 		}
 
 		profileName := profilebindings[i].Spec.ProfileRef.Name
 		if req.Operation == "DELETE" {
+			p.log.Info("Removing pod from binding", "podID", podID, "profileBinding", profilebindings[i])
 			if err := p.removePodFromBinding(ctx, podID, &profilebindings[i]); err != nil {
 				return pod, admission.Errored(http.StatusInternalServerError, err)
 			}
+			p.log.Info("Successfully removed pod from binding", "podID", podID)
 			continue
 		}
+
 		namespacedName := types.NamespacedName{Namespace: req.Namespace, Name: profileName}
 		var bindProfile interface{}
-		var err error
 
 		if profileKind == profilebindingv1alpha1.ProfileBindingKindSeccompProfile {
 			bindProfile, err = p.getSeccompProfile(ctx, namespacedName)
+			p.log.Info("Fetched Seccomp profile", "profileName", profileName)
 		}
 
 		if profileKind == profilebindingv1alpha1.ProfileBindingKindSelinuxProfile {
 			bindProfile, err = p.getSelinuxProfile(ctx, namespacedName)
+			p.log.Info("Fetched SELinux profile", "profileName", profileName)
 		}
 
 		if err != nil {
@@ -188,21 +199,29 @@ func (p *podBinder) updatePod(
 		if profilebindings[i].Spec.Image == profilebindingv1alpha1.SelectAllContainersImage {
 			podBindProfile = &bindProfile
 			podProfileBinding = &profilebindings[i]
+			p.log.Info("Selected all containers image, binding profile for pod", "podID", podID)
 			continue
 		}
+
 		value, ok := containers.Load(profilebindings[i].Spec.Image)
 		if !ok {
+			p.log.Info("Container not found in container map", "image", profilebindings[i].Spec.Image)
 			continue
 		}
+
 		containers, ok := value.(containerList)
 		if !ok {
+			p.log.Info("Invalid container type found", "image", profilebindings[i].Spec.Image)
 			continue
 		}
 
 		for j := range containers {
 			podChanged = p.addSecurityContext(containers[j], bindProfile)
+			p.log.Info("Added security context to container", "container", containers[j], "podChanged", podChanged)
 		}
+
 		if podChanged {
+			p.log.Info("Pod changed, adding to binding", "podID", podID, "profileBinding", profilebindings[i])
 			if err := p.addPodToBinding(ctx, podID, &profilebindings[i]); err != nil {
 				return pod, admission.Errored(http.StatusInternalServerError, err)
 			}
@@ -210,19 +229,25 @@ func (p *podBinder) updatePod(
 	}
 
 	if podChanged {
+		p.log.Info("Pod has changed, returning updated pod")
 		return pod, admission.Response{}
 	}
 
 	if podBindProfile == nil || podProfileBinding == nil {
+		p.log.Info("Pod unchanged, no profiles bound")
 		return pod, admission.Allowed("pod unchanged")
 	}
 
 	if !p.addPodSecurityContext(pod, *podBindProfile) {
+		p.log.Info("No changes made to pod security context")
 		return pod, admission.Allowed("pod unchanged")
 	}
+
 	if err := p.addPodToBinding(ctx, podID, podProfileBinding); err != nil {
+		p.log.Error(err, "failed to add pod to binding", "podID", podID, "profileBinding", podProfileBinding)
 		return pod, admission.Errored(http.StatusInternalServerError, err)
 	}
+	p.log.Info("Successfully added pod to binding", "podID", podID, "profileBinding", podProfileBinding)
 	return pod, admission.Response{}
 }
 

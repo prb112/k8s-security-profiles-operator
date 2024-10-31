@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -70,11 +70,16 @@ const (
 	errForbiddenProfile    = "seccomp profile not allowed"
 	errForbiddenAction     = "seccomp action not allowed"
 
-	filePermissionMode os.FileMode = 0o644
+	// filePermissionMode os.FileMode = 0o644
 
 	// MkdirAll won't create a directory if it does not have the execute bit.
 	// https://github.com/golang/go/issues/22323#issuecomment-340568811
-	dirPermissionMode os.FileMode = 0o744
+	// dirPermissionMode os.FileMode = 0o744
+	// dirPermissionMode  = 0755
+	// filePermissionMode = 0644
+
+	dirPermissionMode  os.FileMode = 0755
+	filePermissionMode os.FileMode = 0644
 
 	reasonSeccompNotSupported   string = "SeccompNotSupportedOnNode"
 	reasonInvalidSeccompProfile string = "InvalidSeccompProfile"
@@ -267,29 +272,47 @@ func (r *Reconciler) checkSeccomp() error {
 
 // Reconcile reconciles a SeccompProfile.
 func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+	// Initialize the logger with relevant context (profile name and namespace)
 	logger := r.log.WithValues("profile", req.Name, "namespace", req.Namespace)
+	logger.Info("Starting reconciliation process")
 
+	// Set a timeout for the reconciliation process
 	ctx, cancel := context.WithTimeout(ctx, reconcileTimeout)
 	defer cancel()
 
+	// Check if the Seccomp feature is enabled on the node
+	logger.Info("Checking Seccomp availability")
 	if err := r.checkSeccomp(); err != nil {
-		logger.Error(err, "profile not added")
-		// Do not requeue (will be requeued if a change to the object is
-		// observed, or after the usually very long reconcile timeout
-		// configured for the controller manager)
+		logger.Error(err, "Seccomp is not enabled, profile not added")
+		// Do not requeue, since this is a non-recoverable error unless Seccomp is enabled
 		return reconcile.Result{}, nil
 	}
 
+	// Fetch the SeccompProfile object from the API server
+	logger.Info("Fetching SeccompProfile", "profileName", req.Name, "namespace", req.Namespace)
 	seccompProfile := &seccompprofileapi.SeccompProfile{}
 	if err := r.client.Get(ctx, req.NamespacedName, seccompProfile); err != nil {
-		// Expected to find a SeccompProfile, return an error and requeue
+		// If SeccompProfile is not found, log and return without error (no need to requeue)
 		if util.IgnoreNotFound(err) == nil {
+			logger.Info("SeccompProfile not found, possibly deleted", "profileName", req.Name)
 			return reconcile.Result{}, nil
 		}
+		// Log and return error if there was an issue retrieving the profile
+		logger.Error(err, "Error fetching SeccompProfile", "profileName", req.Name)
 		return reconcile.Result{}, fmt.Errorf("%s: %w", errGetProfile, err)
 	}
 
-	return r.reconcileSeccompProfile(ctx, seccompProfile, logger)
+	// Proceed to reconcile the SeccompProfile
+	logger.Info("Reconciling SeccompProfile", "profileName", req.Name)
+	result, err := r.reconcileSeccompProfile(ctx, seccompProfile, logger)
+	if err != nil {
+		logger.Error(err, "Failed to reconcile SeccompProfile", "profileName", req.Name)
+		return result, err
+	}
+
+	// Log successful reconciliation
+	logger.Info("Successfully reconciled SeccompProfile", "profileName", req.Name)
+	return result, nil
 }
 
 func (r *Reconciler) mergeBaseProfile(
@@ -428,105 +451,128 @@ func (r *Reconciler) resolveSyscallsForProfile(
 func (r *Reconciler) reconcileSeccompProfile(
 	ctx context.Context, sp *seccompprofileapi.SeccompProfile, l logr.Logger,
 ) (reconcile.Result, error) {
+	l.Info("############### reconcileSeccompProfile")
+	// Initial validation: check if the SeccompProfile object is nil
 	if sp == nil {
+		l.Error(errors.New(errSeccompProfileNil), "SeccompProfile object is nil")
 		return reconcile.Result{}, errors.New(errSeccompProfileNil)
 	}
 	profileName := sp.Name
+	l.Info("Start reconciling SeccompProfile", "profileName", profileName)
 
+	// Create nodeStatus for the SeccompProfile
 	nodeStatus, err := nodestatus.NewForProfile(sp, r.client)
 	if err != nil {
+		l.Error(err, "Cannot create nodeStatus for profile", "profileName", profileName)
 		return reconcile.Result{}, fmt.Errorf("cannot create nodeStatus: %w", err)
 	}
+	l.Info("Created nodeStatus for profile", "profileName", profileName)
 
-	if !sp.GetDeletionTimestamp().IsZero() { // object is being deleted
+	// Handle profile deletion if DeletionTimestamp is set
+	if !sp.GetDeletionTimestamp().IsZero() {
+		l.Info("Profile is being deleted", "profileName", profileName)
 		return r.reconcileDeletion(ctx, sp, nodeStatus)
 	}
 
-	l.Info("Merge possible base profile")
+	// Merge base profile if applicable
+	l.Info("Merging possible base profile", "profileName", profileName)
 	outputProfile, err := r.mergeBaseProfile(ctx, sp, l)
 	if err != nil {
-		l.Error(err, "merge base profile")
+		l.Error(err, "Failed to merge base profile", "profileName", profileName)
 		return reconcile.Result{RequeueAfter: wait}, nil
 	}
 
-	l.Info("Validate profile")
+	// Validate the merged profile
+	l.Info("Validating profile", "profileName", profileName)
 	if err := r.validateProfile(ctx, outputProfile); err != nil {
-		l.Error(err, "validate profile")
+		l.Error(err, "Profile validation failed", "profileName", profileName)
 		r.metrics.IncSeccompProfileError(reasonProfileNotAllowed)
 		r.record.Event(sp, util.EventTypeWarning, reasonProfileNotAllowed, err.Error())
 		return reconcile.Result{Requeue: false}, fmt.Errorf("validating profile: %w", err)
 	}
 
-	l.Info("Got profile content")
+	// Convert profile content to JSON for saving
+	l.Info("Marshalling profile content", "profileName", profileName)
 	profileContent, err := json.Marshal(outputProfile.Spec)
 	if err != nil {
-		l.Error(err, "cannot validate profile "+profileName)
+		l.Error(err, "Cannot marshall profile content", "profileName", profileName)
 		r.metrics.IncSeccompProfileError(reasonInvalidSeccompProfile)
 		r.record.Event(sp, util.EventTypeWarning, reasonInvalidSeccompProfile, err.Error())
-		return reconcile.Result{}, fmt.Errorf("cannot validate profile: %w", err)
+		return reconcile.Result{}, fmt.Errorf("cannot marshall profile: %w", err)
 	}
 
+	// Determine the file path for the profile
 	profilePath := sp.GetProfilePath()
+	l.Info("Resolved profile path", "profilePath", profilePath)
 
-	// The object is not being deleted
+	// Check if node status already exists
+	l.Info("Checking if node status exists", "profileName", profileName)
 	exists, existErr := nodeStatus.Exists(ctx)
-
 	if existErr != nil {
+		l.Error(existErr, "Error checking node status existence", "profileName", profileName)
 		return reconcile.Result{}, fmt.Errorf("checking if node status exists: %w", existErr)
 	}
 
+	// Create the node status if it doesn't exist
 	if !exists {
-		l.Info("Creating node status")
+		l.Info("Node status does not exist, creating", "profileName", profileName)
 		if err := nodeStatus.Create(ctx); err != nil {
+			l.Error(err, "Error creating node status", "profileName", profileName)
 			return reconcile.Result{}, fmt.Errorf("cannot ensure node status: %w", err)
 		}
-		l.Info("Created an initial status for this node")
+		l.Info("Created node status", "profileName", profileName)
 		return reconcile.Result{RequeueAfter: wait}, nil
 	}
 
+	// Skip reconciliation if profile is not reconcilable
 	if !sp.IsReconcilable() {
-		l.Info("Profile is partial or disabled, skipping")
+		l.Info("Profile is partial or disabled, skipping reconciliation", "profileName", profileName)
 		return reconcile.Result{}, nil
 	}
 
-	l.Info("Saving profile to disk")
+	// Save profile content to disk
+	l.Info("Saving profile to disk", "profileName", profileName)
 	updated, err := r.save(profilePath, profileContent)
 	if err != nil {
-		l.Error(err, "cannot save profile into disk")
+		l.Error(err, "Failed to save profile to disk", "profileName", profileName)
 		r.metrics.IncSeccompProfileError(reasonCannotSaveProfile)
 		r.record.Event(sp, util.EventTypeWarning, reasonCannotSaveProfile, err.Error())
 		return reconcile.Result{}, fmt.Errorf("cannot save profile into disk: %w", err)
 	}
 	if updated {
 		evstr := "Successfully saved profile to disk on " + os.Getenv(config.NodeNameEnvKey)
-		l.Info(evstr)
+		l.Info(evstr, "profileName", profileName)
 		r.metrics.IncSeccompProfileUpdate()
 		r.record.Event(sp, util.EventTypeNormal, reasonSavedProfile, evstr)
 	}
 
-	l.Info("Checking node status")
+	// Check if node status matches the "Installed" state
+	l.Info("Checking node status", "profileName", profileName)
 	isAlreadyInstalled, getErr := nodeStatus.Matches(ctx, statusv1alpha1.ProfileStateInstalled)
 	if getErr != nil {
-		l.Error(getErr, "couldn't get current status")
+		l.Error(getErr, "Failed to get current node status", "profileName", profileName)
 		return reconcile.Result{}, fmt.Errorf("getting status for installed SeccompProfile: %w", getErr)
 	}
 
+	// If already installed, log success and exit
 	if isAlreadyInstalled {
-		l.Info("Already in the expected Installed state")
+		l.Info("Profile already in Installed state", "profileName", profileName)
 		return reconcile.Result{}, nil
 	}
 
-	l.Info("Set node status to installed")
+	// Set the node status to "Installed"
+	l.Info("Setting node status to Installed", "profileName", profileName)
 	if err := nodeStatus.SetNodeStatus(ctx, statusv1alpha1.ProfileStateInstalled); err != nil {
-		l.Error(err, "cannot update node status")
+		l.Error(err, "Failed to set node status to Installed", "profileName", profileName)
 		r.metrics.IncSeccompProfileError(reasonCannotUpdateStatus)
 		r.record.Event(sp, util.EventTypeWarning, reasonCannotUpdateStatus, err.Error())
 		return reconcile.Result{}, fmt.Errorf("updating status in SeccompProfile reconciler: %w", err)
 	}
 
+	// Final log before completing reconciliation
 	l.Info(
-		"Reconciled profile from SeccompProfile",
-		"resource version", sp.GetResourceVersion(),
+		"Successfully reconciled SeccompProfile",
+		"resourceVersion", sp.GetResourceVersion(),
 		"name", sp.GetName(),
 	)
 	return reconcile.Result{}, nil
@@ -610,17 +656,47 @@ func (r *Reconciler) validateProfile(ctx context.Context, profile *seccompprofil
 }
 
 func saveProfileOnDisk(fileName string, content []byte) (updated bool, err error) {
-	if err := os.MkdirAll(path.Dir(fileName), dirPermissionMode); err != nil {
-		return false, fmt.Errorf("%s: %w", errCreatingOperatorDir, err)
+	fmt.Printf("L660: saveProfileOnDisk: %s %s\n", fileName, dirPermissionMode)
+
+	// Split the full path into directory and filename
+	mainDirPath := filepath.Dir(fileName)
+	mainFilename := filepath.Base(fileName)
+
+	fmt.Printf("L666: saveProfileOnDisk: mainDirPath: %s mainFilename: %s\n", mainDirPath, mainFilename)
+
+	// Check if the main directory exists, create it if it does not
+	if err := os.MkdirAll(mainDirPath, dirPermissionMode); err != nil {
+		fmt.Printf("Error creating directory: %v\n", err)
+		return false, err
 	}
 
+	fmt.Printf("L680: saveProfileOnDisk: Created directory: %s\n", mainDirPath)
+
+	// Create the file in the directory
+	// mainFilePath := filepath.Join(mainDirPath, mainFilename)
+	// file, err := os.Create(fileName)
+	// if err != nil {
+	// 	fmt.Printf("Error creating file: %v\n", err)
+	// 	return false, err
+	// }
+	// defer file.Close()
+
+	// fmt.Printf("File created successfully: %s\n", fileName)
+
+	// Read existing content
 	existingContent, err := os.ReadFile(fileName)
 	if err == nil && bytes.Equal(existingContent, content) {
+		fmt.Printf("L673: saveProfileOnDisk ReadFile: No changes detected\n")
 		return false, nil
+	} else if err != nil && !os.IsNotExist(err) {
+		fmt.Printf("L676: saveProfileOnDisk ReadFile err: %s\n", err)
 	}
 
+	// Save new content
+	// fmt.Printf("L679: Log the file path and name before writing: %s\n", mainFilePath)
 	if err := os.WriteFile(fileName, content, filePermissionMode); err != nil {
-		return false, fmt.Errorf("%s: %w", errSavingProfile, err)
+		fmt.Printf("L682: saveProfileOnDisk WriteFile err: %s\n", err)
+		return false, fmt.Errorf("failed to save profile: %w", err)
 	}
 
 	return true, nil
