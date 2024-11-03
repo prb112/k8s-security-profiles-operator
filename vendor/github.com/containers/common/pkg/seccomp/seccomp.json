@@ -49,6 +49,12 @@
 			"subArchitectures": [
 				"SCMP_ARCH_S390"
 			]
+		},
+		{
+			"architecture": "SCMP_ARCH_PPC64LE",
+			"subArchitectures": [
+				"SCMP_ARCH_PPC64LE"
+			]
 		}
 	],
 	"syscalls": [

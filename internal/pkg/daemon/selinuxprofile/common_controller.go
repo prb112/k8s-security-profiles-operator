@@ -318,22 +318,61 @@ func (r *ReconcileSelinux) reconcilePolicy(
 }
 
 func (r *ReconcileSelinux) reconcilePolicyFile(
-	sp selxv1alpha2.SelinuxProfileObject,
-	oh SelinuxObjectHandler,
-	l logr.Logger,
+    sp selxv1alpha2.SelinuxProfileObject,
+    oh SelinuxObjectHandler,
+    l logr.Logger,
 ) error {
-	policyPath := path.Join(bindata.SelinuxDropDirectory, sp.GetPolicyName()+".cil")
-	cil, parseErr := oh.GetCILPolicy()
-	if parseErr != nil {
-		return fmt.Errorf("generating CIL: %w", parseErr)
-	}
-	policyContent := []byte(cil)
+    l.V(1).Info("Starting to reconcile policy file")
 
-	if err := writeFileIfDiffers(policyPath, policyContent, l); err != nil {
-		return fmt.Errorf("writing policy file: %w", err)
-	}
+    // Get the policy name
+    policyName := sp.GetPolicyName()
+    l.V(1).Info("Retrieved policy name", "policyName", policyName)
 
-	return nil
+    // Get the directory for the policy files
+    dir := bindata.SelinuxDropDirectory
+    l.V(1).Info("Selinux directory for policy files", "directory", dir)
+
+    // Create the complete policy path
+    policyPath := path.Join(dir, policyName+".cil")
+    l.V(1).Info("Complete policy path", "policyPath", policyPath)
+
+    // Check if the directory exists before joining the path
+    if _, err := os.Stat(dir); os.IsNotExist(err) {
+        l.V(1).Info("Directory does not exist, attempting to create", "directory", dir)
+        // Create the directory if it does not exist
+        if mkErr := os.MkdirAll(dir, os.ModePerm); mkErr != nil {
+            l.Error(mkErr, "Failed to create directory", "directory", dir)
+            return fmt.Errorf("creating directory %s: %w", dir, mkErr)
+        }
+        l.V(1).Info("Directory created successfully", "directory", dir)
+    } else if err != nil {
+        l.Error(err, "Error checking directory", "directory", dir)
+        return fmt.Errorf("checking directory %s: %w", dir, err)
+    } else {
+        l.V(1).Info("Directory already exists", "directory", dir)
+    }
+
+    // Get CIL policy from handler
+    l.V(1).Info("Generating CIL policy")
+    cil, parseErr := oh.GetCILPolicy()
+    if parseErr != nil {
+        l.Error(parseErr, "Error generating CIL policy")
+        return fmt.Errorf("generating CIL: %w", parseErr)
+    }
+    l.V(1).Info("CIL policy generated successfully", "CIL", cil)
+
+    policyContent := []byte(cil)
+
+    // Write the policy file
+    l.V(1).Info("Writing policy file if it differs")
+    if err := writeFileIfDiffers(policyPath, policyContent, l); err != nil {
+        l.Error(err, "Failed to write policy file", "policyPath", policyPath)
+        return fmt.Errorf("writing policy file: %w", err)
+    }
+    l.V(1).Info("Policy file written successfully", "policyPath", policyPath)
+
+    l.V(1).Info("Policy file reconciliation complete")
+    return nil
 }
 
 func (r *ReconcileSelinux) reconcileDeletePolicy(

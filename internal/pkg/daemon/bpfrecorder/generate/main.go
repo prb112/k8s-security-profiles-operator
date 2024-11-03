@@ -65,7 +65,7 @@ const (
 	docsHeader  = "The following Kernels are supported to run the BPF recorder " +
 		"beside those which already expose `/sys/kernel/btf/vmlinux`. " +
 		"Please note that at least a Linux kernel version 5.8 is required " +
-		"to use the bpf recorder.\n\n"
+		"to use the bpf recorder, and this includes support for ppc64le architecture.\n\n"
 )
 
 func main() {
@@ -102,7 +102,7 @@ func generateBpfObj(builder *strings.Builder) error {
 	builder.WriteString(header)
 	builder.WriteString("var bpfObjects = map[string][]byte{\n")
 
-	for _, arch := range []string{"amd64", "arm64"} {
+	for _, arch := range []string{"amd64", "arm64", "ppc64le"} {
 		fmt.Fprintf(builder, "%q: {\n", arch)
 
 		file, err := os.ReadFile(filepath.Join(buildDir, bpfObj+"."+arch))
@@ -222,3 +222,4 @@ func generateBtf(builder *strings.Builder) error {
 
 	return nil
 }
+
