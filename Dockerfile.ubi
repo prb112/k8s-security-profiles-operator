@@ -23,13 +23,15 @@ USER root
 WORKDIR /work
 
 RUN dnf install -y \
-  libseccomp-devel
+  libseccomp-devel \
+  bpftrace \
+  clang
 
 ADD . /work
 RUN mkdir -p build
 
 ARG APPARMOR_ENABLED=0
-ARG BPF_ENABLED=0
+ARG BPF_ENABLED=1 # Enabled BPF support
 
 # OCP in FIPS mode doesn't like statically linked SPO
 ARG STATIC_LINK=no
