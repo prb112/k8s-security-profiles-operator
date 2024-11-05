@@ -22,10 +22,25 @@ FROM registry.access.redhat.com/ubi9/go-toolset@sha256:bee74f192b88c76f4b1a41f98
 USER root
 WORKDIR /work
 
+# Install necessary packages including dependencies for libbpf
 RUN dnf install -y \
   libseccomp-devel \
   bpftrace \
-  clang
+  clang \
+  git \
+  make \
+  gcc \
+  cmake && \
+  # Clone, build, and install libbpf
+  git clone https://github.com/libbpf/libbpf.git && \
+  cd libbpf/src && \
+  make && \
+  make install && \
+  cd ../.. && \
+  rm -rf libbpf && \
+  # Clean up unnecessary packages
+  dnf remove -y git make gcc cmake && \
+  dnf clean all
 
 ADD . /work
 RUN mkdir -p build
