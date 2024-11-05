@@ -557,7 +557,8 @@ func (b *BpfRecorder) findBtfPath() (string, error) {
 		return "", fmt.Errorf("uname syscall failed: %w", err)
 	}
 
-	arch := types.Arch(toStringInt8(uname.Machine))
+	
+	arch := types.Arch(UnameMachineToString(uname))
 	btfArch, ok := btfOsVersion[arch]
 	if !ok {
 		b.logger.Info(fmt.Sprintf("Architecture not found in btf map: %s", arch))
@@ -565,7 +566,7 @@ func (b *BpfRecorder) findBtfPath() (string, error) {
 	}
 	b.logger.Info(fmt.Sprintf("Architecture found in btf map: %s", arch))
 
-	release := toStringInt8(uname.Release)
+	release := UnameReleaseToString(uname)
 	version, err := semver.Parse(release)
 	if err != nil {
 		return "", fmt.Errorf("unable to parse semver for release %s: %w", release, err)
@@ -602,14 +603,6 @@ func (b *BpfRecorder) findBtfPath() (string, error) {
 
 	b.logger.Info("Wrote BTF to file: " + file.Name())
 	return file.Name(), nil
-}
-
-func toStringInt8(array [65]int8) string {
-	var buf [65]byte
-	for i, b := range array {
-		buf[i] = byte(b)
-	}
-	return toStringByte(buf[:])
 }
 
 func toStringByte(array []byte) string {
