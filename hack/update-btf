@@ -20,7 +20,6 @@ git clone --depth 1 https://github.com/aquasecurity/btfhub-archive "${ARCHIVE}"
 
 bash ./extract.sh -a x86_64
 bash ./extract.sh -a arm64
-bash ./extract.sh -a ppc64le
 
 bash ./btfgen.sh -a x86_64 -o "${BPF_OBJECT}".amd64
 rm -rf "${BTF_DIR}"

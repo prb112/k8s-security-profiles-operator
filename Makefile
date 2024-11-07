@@ -350,6 +350,10 @@ update-bpf: $(BUILD_DIR) ## Build and update all generated BPF code with nix
 		nix-build nix/default-bpf-$$arch.nix ;\
 		cp -f result/recorder.bpf.o $(BUILD_DIR)/recorder.bpf.o.$$arch ;\
 	done
+	for arch in ppc64le; do \
+		./hack/build-bpf-obj
+		cp -f result/recorder.bpf.o $(BUILD_DIR)/recorder.bpf.o.$$arch ;\
+	done
 	chmod 0644 $(BUILD_DIR)/recorder.bpf.o.*
 	$(GO) run ./internal/pkg/daemon/bpfrecorder/generate
 

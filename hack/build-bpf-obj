@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euox pipefail
+
+dnf install -y bpftool
+#bash ./btfgen.sh -a arm64 -o "${BPF_OBJECT}".arm64
+# TODO: How to generate generate what we need
+bpftool gen min_core_btf ${extracted} ${out_dir}/${extracted} ${obj_cmdline}

@@ -102,6 +102,7 @@ func generateBpfObj(builder *strings.Builder) error {
 	builder.WriteString(header)
 	builder.WriteString("var bpfObjects = map[string][]byte{\n")
 
+	// DEV TODO: need to make ppc64le exist, and then regenerate
 	for _, arch := range []string{"amd64", "arm64", "ppc64le"} {
 		fmt.Fprintf(builder, "%q: {\n", arch)
 
@@ -130,6 +131,7 @@ func generateBpfObj(builder *strings.Builder) error {
 	return nil
 }
 
+// MOVE the generatred BTF into a separate folder so the BPF remains stable when the BTF is updated
 func generateBtf(builder *strings.Builder) error {
 	builder.WriteString("var btfJSON = `")
 	btfs := types.Btf{}
@@ -222,4 +224,3 @@ func generateBtf(builder *strings.Builder) error {
 
 	return nil
 }
-
