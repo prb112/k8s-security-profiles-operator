@@ -3019,6 +3019,7 @@ data:
             "setuid",
             "sigaltstack",
             "socket",
+            "stat",
             "statfs",
             "tgkill",
             "time",
